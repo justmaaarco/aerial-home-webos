@@ -5,7 +5,7 @@ Build the IPK with `node tools/package.cjs`. Compare its checksum with the publi
 Use webOS Dev Manager's package installer with a TV connection that is already configured, or the LG CLI:
 
 ```sh
-ares-install --device YOUR_TV dist/io.github.justmaaarco.aerialhome_0.1.0_all.ipk
+ares-install --device YOUR_TV dist/io.github.justmaaarco.aerialhome_0.2.0_all.ipk
 ares-launch --device YOUR_TV io.github.justmaaarco.aerialhome
 ```
 
@@ -21,6 +21,6 @@ ares-install --device YOUR_TV --remove io.github.justmaaarco.aerialhome
 
 The app stores its own preferences under `aerial-home-v1` in localStorage. It does not change picture settings, firmware, existing launchers or boot configuration. If a separate startup integration has been configured manually, revert that integration before removing its target app.
 
-No Pi process is needed after installation. Video is streamed by the TV. Loading a different app releases the background video when webOS reports that the launcher is hidden.
+Native Apple TV aerials stream directly from Apple. Newer 240 fps Mac aerials need the optional [local media helper](media-helper.md). Loading another app releases the video when webOS reports the launcher is hidden. Moving aerials continue while launcher or LG overlay menus are open; an experimental pause-on-menu behavior was removed after it did not improve the user's reported lag.
 
-Integrations can launch a particular panel using app launch parameters, for example `{"screen":"controls"}`. Supported screen values are `controls`, `settings`, `inputs` and `search`.
+Integrations can launch a panel using parameters such as `{"screen":"controls"}`. Supported screens are `controls`, `settings`, `inputs`, `search`, `aerials` and `apps`. Optional `sceneId` selects a known catalogue entry; `mediaServer` configures an HTTP helper on a private LAN address with a port. Addresses are stored locally, never in the public repository.

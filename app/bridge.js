@@ -23,7 +23,9 @@
   // Only fixed commands are accepted. Never interpolate app titles, search text or URLs into a shell.
   const commands = {
     apps: "luna-send -n 1 luna://com.webos.applicationManager/listLaunchPoints '{}'",
-    inputs: "luna-send -n 1 luna://com.webos.service.eim/getAllInputStatus '{}'"
+    inputs: "luna-send -n 1 luna://com.webos.service.eim/getAllInputStatus '{}'",
+    capabilities: "luna-send -n 1 luna://com.webos.service.config/getConfigs '{\"configNames\":[\"tv.model.supportHDR\",\"tv.config.supportDolbyHDRContents\",\"tv.hw.panelResolution\"]}'",
+    favorites: "if [ -f /media/developer/apps/usr/palm/applications/com.ecklf.luma/preferences.json ]; then cat /media/developer/apps/usr/palm/applications/com.ecklf.luma/preferences.json; else printf '{}'; fi"
   };
   async function rootCommand(name) {
     if(!Object.hasOwn(commands,name)) throw new Error('Unknown TV request');
@@ -93,5 +95,15 @@
     return 'data:image/'+(ext==='svg'?'svg+xml':ext==='jpg'?'jpeg':ext)+';base64,'+data;
   }
   const launch=id=>call('luna://com.webos.applicationManager/launch',{id});
-  window.TV={live,call,listApps,icon,launch};
+  async function capabilities() {
+    if(!live)return {dolbyVision:false,hdr10:false,uhd:true};
+    const payload={configNames:['tv.model.supportHDR','tv.config.supportDolbyHDRContents','tv.hw.panelResolution']};
+    let result;
+    try {result=await call('luna://com.webos.service.config/getConfigs',payload);}
+    catch (_){result=await rootCommand('capabilities');}
+    const c=result.configs || {};
+    return {dolbyVision:c['tv.config.supportDolbyHDRContents']===true,hdr10:c['tv.model.supportHDR']===true,uhd:['UD','8K'].includes(c['tv.hw.panelResolution'])};
+  }
+  async function lumaFavorites() {if(!live)return [];try {const p=await rootCommand('favorites');return Array.isArray(p.favorites)?p.favorites.filter(id=>typeof id==='string'):[];}catch(_){return [];}}
+  window.TV={live,call,listApps,icon,launch,capabilities,lumaFavorites};
 })();

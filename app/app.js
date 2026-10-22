@@ -1,16 +1,17 @@
 (async function () {
   'use strict';
-  const {clean,visible,nextIndex}=AerialCore;
+  const {clean,visible,nextIndex,homeApps,starterFavorites,greeting}=AerialCore;
+  const {ShuffleBag,variants:mediaVariants,label:qualityLabel}=AerialMedia;
   const $=id=>document.getElementById(id);
   let prefs;
   try { prefs=clean(JSON.parse(localStorage.getItem('aerial-home-v1'))); } catch (_) { prefs=clean(); }
   let apps=[],shown=[],focusId=null,panelKind=null,moving=null,saver=false,lastActivity=Date.now(),toastTimer,videoFailed=0;
-  let returnFocus=null,videoSuspended=false;
-  const scenes=[
-    {title:'Hong Kong',url:'http://sylvan.apple.com/Aerials/2x/Videos/HK_H004_C013_4K_SDR_HEVC.mov'},
-    {title:'London',url:'http://sylvan.apple.com/Aerials/2x/Videos/comp_L004_C011_PS_v01_SDR_PS_20180925_SDR_4K_HEVC.mov'},
-    {title:'New York City',url:'http://sylvan.apple.com/Aerials/2x/Videos/comp_N013_C004_PS_v01_SDR_PS_20180925_F1970F7193_SDR_4K_HEVC.mov'}
-  ];
+  let returnFocus=null,videoSuspended=false,homeDirty=false,greetingKey='',lastGreetingIndex=-1;
+  let caps={dolbyVision:false,hdr10:false,uhd:true};
+  const scenes=APPLE_AERIALS.scenes,bag=new ShuffleBag(),sceneMap=new Map(scenes.map(s=>[s.id,s]));
+  let currentScene=null,currentVariant=null,playGeneration=0,startTimer,playRequest=false,preparingTitle='';
+  const failedVariants=new Set(),failedScenes=new Set();
+  document.body.classList.toggle('tv',TV.live);
   const paths={
     search:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',
     controls:'<path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="currentColor"/><circle cx="16" cy="17" r="3" fill="currentColor"/>',
@@ -31,13 +32,14 @@
     picture:'<rect x="3" y="3" width="18" height="18" rx="4"/><path d="m3 17 6-6 4 4 3-3 5 5"/><circle cx="16" cy="8" r="1"/>',
     check:'<path d="m4 12 5 5L20 6"/>'
   };
+  paths.apps='<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>';
   function svg(name) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(paths[name]||paths.play)+'</svg>'; }
   function el(tag,className,text) { const n=document.createElement(tag); if(className)n.className=className; if(text!==undefined)n.textContent=text; return n; }
   function toast(message) { $('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,4500); }
   async function safely(action) { try { await action(); } catch(error) { toast(error.message || 'The TV could not complete that action'); } }
   function save() {
     try { localStorage.setItem('aerial-home-v1',JSON.stringify(prefs)); } catch (_) { toast('Settings could not be saved: TV storage is full'); }
-    applyAppearance();
+    homeDirty=true;applyAppearance();
   }
   function applyAppearance() {
     const hour=new Date().getHours();
@@ -48,13 +50,15 @@
   }
   function fit() { $('stage').style.transform='scale('+Math.min(innerWidth/1920,innerHeight/1080)+')'; }
   addEventListener('resize',fit);fit();applyAppearance();
-  $('search-button').innerHTML=svg('search');$('controls-button').innerHTML=svg('controls');
-  $('search-button').onclick=search;$('controls-button').onclick=controls;
-  function clock() {
+  $('search-button').innerHTML=svg('search');$('controls-button').innerHTML=svg('controls');$('apps-button').innerHTML=svg('apps');
+  $('search-button').onclick=search;$('controls-button').onclick=controls;$('apps-button').onclick=allApps;
+  function clock(refreshGreeting=false) {
+    const date=new Date(),g=greeting(date.getHours(),Math.random,lastGreetingIndex),key=date.toDateString()+g.period;
+    if(refreshGreeting||key!==greetingKey){greetingKey=key;lastGreetingIndex=g.index;$('hero-greeting').textContent=g.title;$('hero-subtitle').textContent=g.phrase;}
     const text=new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
     $('clock').textContent=text;$('saver-clock').textContent=text;
   }
-  clock();setInterval(clock,10000);
+  clock();setInterval(()=>clock(),10000);
   function tile(app) {
     const b=el('button','app');b.dataset.id=app.id;b.setAttribute('aria-label',app.title);
     const face=el('span','tile'+(app.folder?' folder-tile':''));face.style.setProperty('--tile',app.color||'#ffffff25');
@@ -74,17 +78,18 @@
   }
   function render(id=focusId,focus=true) {
     const wasGrid=document.activeElement?.classList.contains('app') && !panelKind;
-    shown=visible(apps,prefs);
+    shown=homeApps(apps,prefs);homeDirty=false;
     const grid=$('grid');grid.replaceChildren(...shown.map(tile));
     $('empty').hidden=shown.length>0;
     if(moving) Array.from(grid.children).find(b=>b.dataset.id===moving)?.classList.add('moving');
     if(focus || wasGrid) (Array.from(grid.children).find(b=>b.dataset.id===id) || grid.firstElementChild)?.focus({preventScroll:true});
+    hydrateIcons(shown);
   }
   async function openApp(app) {
     if(app.folder) { folder(app);return; }
     if(app.id==='settings') { settings();return; }
     if(!TV.live) { toast('Preview: '+app.title+' opens on your LG TV');return; }
-    await safely(async()=>{await TV.launch(app.id);});
+    await safely(async()=>{await TV.launch(app.id);const u=prefs.usage[app.id]||{count:0,last:0};prefs.usage[app.id]={count:u.count+1,last:Date.now()};save();});
   }
   function panel(title,kind='generic',wide=false) {
     moving=null;moveOriginal=null;returnFocus=document.activeElement?.dataset?.id || focusId;
@@ -96,7 +101,8 @@
   }
   function closePanel() {
     $('panel').hidden=true;panelKind=null;document.body.classList.remove('panel-open');
-    $('home').removeAttribute('inert');$('toolbar').removeAttribute('inert');render(returnFocus);
+    $('home').removeAttribute('inert');$('toolbar').removeAttribute('inert');
+    if(homeDirty)render(returnFocus);else(Array.from($('grid').children).find(b=>b.dataset.id===returnFocus)||$('grid').firstElementChild||$('apps-button')).focus({preventScroll:true});
   }
   function section(p,text) { p.append(el('div','panel-section',text)); }
   function note(p,text) { p.append(el('p','panel-note',text)); }
@@ -107,13 +113,14 @@
   async function controls() {
     const p=panel('Control Center','controls');
     control(p,prefs.profile,'person','Profile',profile);
+    control(p,'All apps','apps','',allApps);
     section(p,'TV');
     const audio=control(p,'Sound','volume',TV.live?'Loading…':'Preview',sound);
     if(TV.live) TV.call('luna://com.webos.audio/getVolume').then(r=>{if(audio.isConnected)audio.querySelector('small').textContent=(r.volume??r.volumeStatus?.volume??'')+' · '+((r.muteStatus??r.volumeStatus?.muteStatus)?'Muted':'TV speakers');}).catch(()=>{if(audio.isConnected)audio.querySelector('small').textContent='Open controls';});
     control(p,'Sleep timer','moon','Off / 15 / 30 / 60 / 90 min',sleep);
     control(p,'Inputs','input','HDMI',inputs);
     section(p,'PERSONALIZE');
-    control(p,'Aerials','picture',scenes[prefs.scene].title,aerialSettings);
+    control(p,'Aerials','picture',currentScene?.title || 'Apple catalogue',aerialSettings);
     control(p,'Screen saver','moon','Start now',()=>{closePanel();startSaver();});
     control(p,'Settings','settings','',settings);
   }
@@ -156,23 +163,71 @@
     control(p,'Reduce motion','controls',prefs.reduceMotion?'On':'Off',()=>{prefs.reduceMotion=!prefs.reduceMotion;save();settings();});
     control(p,'Aerials & screen saver','picture','4K HEVC',aerialSettings);
     section(p,'HOME SCREEN');
+    control(p,'Apps on Home','apps',{'most-used':'Most used','favorites':'Favourites','all':'All apps'}[prefs.homeMode],homeSelection);
     control(p,'New folder','folder','',createFolder);
     control(p,'Hidden apps','tv',String(prefs.hidden.length),hiddenApps);
     control(p,'Profile name','person',prefs.profile,profile);
     control(p,'LG TV settings','settings','',()=>TV.live?TV.launch('com.palm.app.settings'):toast('Preview: opens LG TV settings'));
-    section(p,'ABOUT');note(p,'Aerial Home 0.1.0 · Independent open-source launcher. Built for webOS. Not affiliated with Apple or LG.');
+    section(p,'ABOUT');note(p,'Aerial Home 0.2.0 · Independent open-source launcher. Built for webOS. Not affiliated with Apple or LG.');
     note(p,TV.live?'Connected to LG webOS. Homebrew Channel supplies app discovery and local artwork.':'Browser preview — sample tiles are original placeholder artwork. Real installed apps appear on the TV.');
   }
   function aerialSettings() {
     const p=panel('Aerials','aerials');
-    control(p,'Video background','picture',prefs.aerial?'On':'Off',()=>{prefs.aerial=!prefs.aerial;save();playScene();aerialSettings();});
-    section(p,'CITYSCAPES · 3840 × 2160');
-    scenes.forEach((s,i)=>control(p,s.title,'picture',prefs.scene===i?'Selected':'4K · HEVC SDR',()=>{prefs.scene=i;prefs.aerial=true;videoFailed=0;save();playScene();aerialSettings();}));
+    control(p,'Video background','picture',prefs.aerial?'On':'Off',()=>{prefs.aerial=!prefs.aerial;save();if(prefs.aerial)playScene();else stopVideo();aerialSettings();});
+    control(p,'Shuffle','controls',prefs.shuffle?'On · no repeats':'Off · in order',()=>{prefs.shuffle=!prefs.shuffle;save();aerialSettings();});
+    control(p,'Next aerial','picture',currentScene?.title || '',()=>playScene(null,true));
+    control(p,'Quality','tv',{'auto':'Maximum compatible','dolby':'Prefer Dolby Vision','hdr':'Prefer HDR10 / HLG','sdr':'4K SDR'}[prefs.quality],qualitySettings);
+    control(p,'Browse aerials','picture',scenes.length+' catalogue entries',()=>browseAerials());
+    control(p,'Shuffle categories','picture',prefs.categories.length+' selected',aerialCategories);
+    control(p,'Include legacy HD','tv',prefs.legacyHD?'On':'Off · 4K only in shuffle',()=>{prefs.legacyHD=!prefs.legacyHD;save();aerialSettings();});
+    control(p,'Compatibility helper','tv',prefs.mediaServer?'Connected on your network':'Optional · newer Mac aerials',mediaServerSettings);
     section(p,'SCREEN SAVER');
     control(p,'Start after','moon',prefs.saverMinutes?prefs.saverMinutes+' minutes':'Never',()=>{const choices=[0,1,3,5,10];prefs.saverMinutes=choices[(choices.indexOf(prefs.saverMinutes)+1)%choices.length];save();aerialSettings();});
     control(p,'Start screen saver','moon','',()=>{closePanel();startSaver();});
-    note(p,'Apple-hosted videos stream directly from their public HTTP media endpoints. No video files are bundled. Aerial availability can change.');
+    note(p,(preparingTitle?'Preparing '+preparingTitle+' on the Pi. ':'')+'Playing '+(currentVariant?qualityLabel(currentVariant):'no video')+'. '+(currentScene?.title || ''));
+    note(p,'Apple TV and Mac catalogues are included. The highest compatible source is selected for each scene; older clips may only exist in HD. Removed Apple files are skipped.');
     if(!TV.live)note(p,'Most desktop browsers cannot decode these HEVC MOV streams. The TV uses its hardware video decoder.');
+  }
+  function qualitySettings() {
+    const p=panel('Aerial quality','quality');
+    [['auto','Maximum compatible'],['dolby','Prefer Dolby Vision'],['hdr','Prefer HDR10 / HLG'],['sdr','4K SDR']].forEach(([id,title])=>control(p,title,'tv',prefs.quality===id?'Selected':'',()=>{prefs.quality=id;failedVariants.clear();failedScenes.clear();save();playScene(currentScene?.id);qualitySettings();}));
+    note(p,'Your TV reports: '+(caps.dolbyVision?'Dolby Vision, ':'')+(caps.hdr10?'HDR10, ':'')+'4K SDR. Dolby Vision is used only where its metadata was verified. This Apple snapshot supplies Dolby Vision HDR variants, not separate HDR10 variants; those scenes use SDR in HDR10 mode.');
+  }
+  function aerialCategories() {
+    const p=panel('Shuffle categories','categories');
+    ['Cities','Landscapes','Space','Underwater'].forEach(name=>control(p,name,'picture',prefs.categories.includes(name)?'Included':'Excluded',()=>{if(prefs.categories.includes(name)){if(prefs.categories.length===1){toast('Keep at least one category selected');return;}prefs.categories=prefs.categories.filter(c=>c!==name);}else prefs.categories.push(name);save();aerialCategories();}));
+  }
+  function browseAerials(category=null,page=0) {
+    const p=panel(category || 'Apple aerial catalogue','browse');
+    if(!category){['Cities','Landscapes','Space','Underwater'].forEach(name=>control(p,name,'picture',String(scenes.filter(s=>s.category===name).length),()=>browseAerials(name)));return;}
+    const list=scenes.filter(s=>s.category===category),size=12;
+    note(p,'Page '+(page+1)+' of '+Math.ceil(list.length/size));
+    if(page)control(p,'Previous page','controls','',()=>browseAerials(category,page-1));
+    list.slice(page*size,(page+1)*size).forEach(s=>{
+      const v=mediaVariants(s,prefs.quality,caps,prefs.mediaServer)[0];
+      control(p,s.title,'picture',v?qualityLabel(v):s.variants.some(v=>v.fps>60)?'Needs compatibility helper':'Unavailable from Apple',()=>{prefs.sceneId=s.id;prefs.aerial=true;save();playScene(s.id);});
+    });
+    if((page+1)*size<list.length)control(p,'Next page','controls','',()=>browseAerials(category,page+1));
+  }
+  function mediaServerSettings() {
+    const p=panel('Compatibility helper','media-server'),input=el('input');input.type='text';input.value=prefs.mediaServer;input.placeholder='http://your-pi-address:8794';input.setAttribute('aria-label','Local media helper address');p.append(input);
+    control(p,'Save helper address','check','',async()=>{const raw=input.value.trim().replace(/\/$/,'');const validated=clean({...prefs,mediaServer:raw}).mediaServer;if(raw&&!validated){toast('Enter an HTTP address on your local network, including its port');return;}if(validated){const r=await fetch(validated+'/api/status');if(!r.ok)throw new Error('Helper did not respond');}prefs.mediaServer=validated;failedScenes.clear();save();toast(validated?'Compatibility helper connected':'Compatibility helper disabled');});
+    note(p,'Newer Mac aerials use 240 fps timing. The optional Pi helper changes timing to 29.97 fps without re-encoding or changing 4K pixels, bit depth or colour. Native TV/Dolby Vision streams go directly to Apple. New clips may need preparation before their first play.');
+  }
+  function homeSelection() {
+    const p=panel('Apps on Home','home-selection');
+    [['most-used','Most used'],['favorites','My favourites'],['all','All apps']].forEach(([id,title])=>control(p,title,'apps',prefs.homeMode===id?'Selected':'',()=>{prefs.homeMode=id;save();homeSelection();}));
+    control(p,'Choose favourites','apps',String(prefs.favorites.length),favoritePicker);
+    note(p,'Most used starts with Luma-style favourites and learns from successful app launches in Aerial Home. Inputs remain in Control Center; every app is available through All apps.');
+  }
+  function favoritePicker() {
+    const p=panel('Choose favourites','favorites');
+    control(p,'Done','check','',()=>{save();closePanel();});
+    apps.filter(a=>a.id!=='settings'&&!a.input).forEach(a=>{const b=control(p,a.title,a.glyph,prefs.favorites.includes(a.id)?'✓':'',()=>{prefs.homeMode='favorites';prefs.favorites=prefs.favorites.includes(a.id)?prefs.favorites.filter(id=>id!==a.id):[...prefs.favorites,a.id];b.querySelector('small').textContent=prefs.favorites.includes(a.id)?'✓':'';save();});});
+  }
+  function allApps() {
+    const p=panel('All apps','all-apps',true),grid=el('div');grid.id='all-app-grid';
+    const list=visible(apps,prefs);grid.append(...list.map(tile));p.append(grid);hydrateIcons(list);
   }
   function search() {
     const p=panel('Search apps','search',true);const input=el('input');input.type='search';input.placeholder='Find an app or input';input.setAttribute('aria-label','Search apps');
@@ -213,21 +268,75 @@
     else if(prefs.folders.length) prefs.folders.forEach(f=>control(p,'Add to '+f.title,'folder','',()=>{prefs.folders.forEach(o=>o.apps=o.apps.filter(id=>id!==a.id));f.apps.push(a.id);save();closePanel();}));
   }
   const video=$('aerial');
-  function stopVideo() { video.pause();video.removeAttribute('src');video.load(); }
-  function playScene() {
-    $('scene-title').textContent=scenes[prefs.scene].title;$('saver-place').textContent=scenes[prefs.scene].title;
-    if(!prefs.aerial || document.hidden || !TV.live) { stopVideo();return; }
-    video.src=scenes[prefs.scene].url;video.muted=true;
-    video.play().catch(()=>{toast('Aerial could not start. You can retry in Settings → Aerials.');});
+  function stopVideo() {playGeneration++;playRequest=false;preparingTitle='';clearTimeout(startTimer);video.loop=false;video.pause();video.removeAttribute('src');video.load();}
+  function choices(scene) {return mediaVariants(scene,prefs.quality,caps,prefs.mediaServer).filter(v=>!failedVariants.has(v.url));}
+  function pool() {return scenes.filter(s=>prefs.categories.includes(s.category)&&!failedScenes.has(s.id)&&choices(s).some(v=>prefs.legacyHD||v.height>=2160));}
+  async function helperJSON(path) {
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),6500);
+    try {const response=await fetch(prefs.mediaServer+path,{signal:controller.signal});if(!response.ok)throw new Error('Local compatibility helper is unavailable');return await response.json();}
+    finally{clearTimeout(timer);}
   }
-  video.onended=()=>{prefs.scene=(prefs.scene+1)%scenes.length;playScene();};
-  video.onerror=()=>{
+  async function preparedSource(scene,variant,generation) {
+    if(variant.fps<=60)return variant.url;
+    if(!prefs.mediaServer)throw new Error('This aerial needs the local compatibility helper');
+    toast('Preparing '+scene.title+' in lossless 4K. The current aerial will keep playing.');
+    preparingTitle=scene.title;video.loop=true;if(video.ended)video.play().catch(()=>{});
+    const deadline=Date.now()+480000;
+    while(Date.now()<deadline&&generation===playGeneration&&!document.hidden){
+      const result=await helperJSON('/api/prepare/'+encodeURIComponent(scene.id));
+      if(result.state==='ready')return prefs.mediaServer+result.url;
+      if(result.state==='error')throw new Error('Could not prepare '+scene.title);
+      await new Promise(resolve=>setTimeout(resolve,1800));
+    }
+    throw new Error(generation!==playGeneration?'Cancelled':'Aerial preparation timed out');
+  }
+  async function playScene(id=null,next=false) {
+    if(!prefs.aerial||document.hidden){stopVideo();return;}
+    const eligible=pool();let scene=id?sceneMap.get(id):currentScene;
+    if(!scene||next){
+      // Start with an immediately playable native file, then include prepared Mac files.
+      scene=sceneMap.get(bag.next(eligible.map(s=>s.id),prefs.shuffle));
+      if(!currentScene&&scene&&choices(scene)[0]?.fps>60){
+        const index=bag.bag.findIndex(id=>choices(sceneMap.get(id))[0]?.fps<=60);
+        if(index>=0){const native=bag.bag.splice(index,1)[0];bag.bag.unshift(scene.id);scene=sceneMap.get(native);bag.last=native;}
+      }
+    }
+    if(!scene){stopVideo();toast('No compatible aerials are currently available in these categories');return;}
+    const variant=choices(scene)[0];
+    if(!variant){toast('This Apple aerial has no available compatible source');return;}
+    if(!TV.live){currentScene=scene;currentVariant=variant;$('scene-title').textContent=scene.title;$('saver-place').textContent=scene.title;$('scene-quality').textContent=qualityLabel(variant);return;}
+    const generation=++playGeneration;playRequest=true;
+    try {
+      const source=await preparedSource(scene,variant,generation);
+      if(generation!==playGeneration||document.hidden)return;
+      currentScene=scene;currentVariant=variant;bag.last=scene.id;
+      bag.bag=bag.bag.filter(other=>other!==scene.id);
+      $('scene-title').textContent=scene.title;$('saver-place').textContent=scene.title;$('scene-quality').textContent=qualityLabel(variant);
+      preparingTitle='';clearTimeout(startTimer);video.loop=false;video.src=source;video.muted=true;
+      startTimer=setTimeout(()=>failedVideo(),25000);
+      video.play().catch(()=>{if(generation===playGeneration)failedVideo();});
+    }catch(error){
+      if(generation!==playGeneration)return;
+      failedVariants.add(variant.url);failedScenes.add(scene.id);toast(error.message);
+      if(!video.getAttribute('src')&&++videoFailed<8)playScene(null,true);
+    }finally{if(generation===playGeneration){playRequest=false;preparingTitle='';video.loop=false;}}
+  }
+  function failedVideo() {
     if(!video.getAttribute('src'))return;
-    if(++videoFailed<scenes.length){prefs.scene=(prefs.scene+1)%scenes.length;playScene();}
-    else {stopVideo();toast('Aerial videos are unavailable. Check the TV network, then retry in Settings.');}
+    clearTimeout(startTimer);if(currentVariant)failedVariants.add(currentVariant.url);
+    if(++videoFailed>=10){stopVideo();toast('Aerial playback failed. Check your network and retry in Aerials.');return;}
+    if(currentScene&&choices(currentScene).length)playScene(currentScene.id);
+    else{if(currentScene)failedScenes.add(currentScene.id);playScene(null,true);}
+  }
+  video.onended=()=>{if(!playRequest)playScene(null,true);};video.onerror=()=>{if(video.error)failedVideo();};
+  video.onplaying=()=>{
+    clearTimeout(startTimer);videoFailed=0;
+    // Prepare at most one likely upcoming Mac clip; keep actual playback native when possible.
+    if(prefs.mediaServer){const next=bag.bag.slice(0,3).map(id=>sceneMap.get(id)).find(s=>choices(s)[0]?.fps>60);if(next)helperJSON('/api/prepare/'+encodeURIComponent(next.id)).catch(()=>{});}
   };
-  video.onplaying=()=>{videoFailed=0;};
-  document.addEventListener('visibilitychange',()=>{if(document.hidden){videoSuspended=true;stopVideo();}else{lastActivity=Date.now();if(videoSuspended){videoSuspended=false;playScene();}clock();}});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden){videoSuspended=true;stopVideo();}else{lastActivity=Date.now();if(homeDirty)render(focusId,false);if(videoSuspended){videoSuspended=false;playScene();}clock(true);}});
+  addEventListener('blur',()=>{clearTimeout(holdTimer);heldKey=null;longPress=false;});
+  addEventListener('pagehide',stopVideo);
   function startSaver() { if(!prefs.aerial){toast('Enable video background in Aerials first');return;}saver=true;document.body.classList.add('saver');$('saver-caption').hidden=false;$('home').setAttribute('inert','');$('toolbar').setAttribute('inert','');document.activeElement?.blur(); }
   function activity() {
     lastActivity=Date.now();
@@ -247,7 +356,8 @@
     if(e.key==='Enter' && !/INPUT/.test(document.activeElement?.tagName)) {
       e.preventDefault();if(heldKey || e.repeat)return;heldKey='Enter';longPress=false;
       const id=document.activeElement?.dataset?.id;
-      if(id&&!panelKind&&!moving)holdTimer=setTimeout(()=>{longPress=true;appMenu(apps.find(a=>a.id===id)||prefs.folders.find(f=>f.id===id));},850);
+      if(id&&(!panelKind||panelKind==='all-apps')&&!moving)holdTimer=setTimeout(()=>{longPress=true;appMenu(apps.find(a=>a.id===id)||prefs.folders.find(f=>f.id===id));},850);
+      else{longPress=true;document.activeElement?.click();}
       return;
     }
     if((e.key.toLowerCase()==='c'||e.keyCode===403)&&!/INPUT/.test(document.activeElement?.tagName)){e.preventDefault();controls();return;}
@@ -258,11 +368,16 @@
     e.preventDefault();const dir=e.key.slice(5).toLowerCase();
     if(panelKind) {
       const all=Array.from($('panel').querySelectorAll('button:not(:disabled),input'));
+      const container=document.activeElement?.parentElement;
+      if(document.activeElement?.classList.contains('app')&&['all-app-grid','folder-grid'].includes(container?.id)){
+        const tiles=Array.from(container.children),at=tiles.indexOf(document.activeElement),next=nextIndex(at,dir,tiles.length,4);
+        if(next<0)$('panel').querySelector('.close')?.focus();else tiles[next]?.focus();return;
+      }
       const i=all.indexOf(document.activeElement),delta=dir==='down'||dir==='right'?1:-1;
       all[Math.max(0,Math.min(all.length-1,i+delta))]?.focus();return;
     }
     const current=Array.from($('grid').children),index=current.indexOf(document.activeElement);
-    if(index<0){if(dir==='down')current[0]?.focus();else if(dir==='left')$('search-button').focus();else if(dir==='right')$('controls-button').focus();return;}
+    if(index<0){const buttons=[$('apps-button'),$('search-button'),$('controls-button')],at=buttons.indexOf(document.activeElement);if(dir==='down')current[0]?.focus();else if(dir==='left'||dir==='right')buttons[Math.max(0,Math.min(2,(at<0?1:at)+(dir==='left'?-1:1)))]?.focus();return;}
     const next=nextIndex(index,dir,current.length,prefs.columns);
     if(next<0){if(!moving)controls();return;}
     if(moving&&next!==index) {
@@ -272,20 +387,31 @@
     }
     current[next]?.focus();current[next]?.scrollIntoView({block:'nearest',behavior:prefs.reduceMotion?'auto':'smooth'});
   },true);
-  try { apps=await TV.listApps();render(); }
+  const iconQueue=[],iconPending=new Set();let iconWorkers=0;
+  function hydrateIcons(list) {
+    for(const app of list){if(app.icon&&!app.image&&!iconPending.has(app.id)){iconPending.add(app.id);iconQueue.push(app);}}
+    while(iconWorkers<2&&iconQueue.length){iconWorkers++;(async()=>{try{
+      while(iconQueue.length){const a=iconQueue.shift();try{a.image=await TV.icon(a);}catch(_){}if(!a.image)continue;
+        for(const button of document.querySelectorAll('.app')){if(button.dataset.id!==a.id)continue;const face=button.querySelector('.tile'),img=el('img');img.src=a.image;img.alt='';face.style.setProperty('--tile',a.color);face.replaceChildren(img);}
+      }
+    }finally{iconWorkers--;}})();}
+  }
+  try {
+    const [inventory,device,favorites]=await Promise.all([TV.listApps(),TV.capabilities().catch(()=>caps),prefs.selectionImported?Promise.resolve([]):TV.lumaFavorites()]);
+    apps=inventory;caps=device;
+    if(!prefs.selectionImported){if(!prefs.favorites.length)prefs.favorites=favorites.length?favorites:starterFavorites(apps);prefs.selectionImported=true;save();}
+    render();
+  }
   catch(error) { apps=[{id:'settings',title:'Settings',glyph:'settings',color:'#aab2bd'}];render();toast('App discovery failed: '+error.message); }
-  $('hero-greeting').textContent=TV.live?'Your world. Ready to play.':'Your evening, beautifully simple.';
-  $('hero-subtitle').textContent=TV.live?'Apps, inputs and a little room to unwind.':'Everything you love. One place.';
-  playScene();
+  playScene(prefs.shuffle?null:prefs.sceneId || null);
   function routeLaunch(event) {
     try {
       const params=event?.detail || JSON.parse(window.PalmSystem?.launchParams || '{}');
-      const routes={controls,settings,inputs,search};
+      if(params.mediaServer!==undefined){prefs.mediaServer=clean({...prefs,mediaServer:params.mediaServer}).mediaServer;failedScenes.clear();save();}
+      const routes={controls,settings,inputs,search,aerials:aerialSettings,apps:allApps};
+      if(params.sceneId&&sceneMap.has(params.sceneId))playScene(params.sceneId);
       if(Object.hasOwn(routes,params.screen))routes[params.screen]();
     } catch (_) { /* Missing launch params simply open Home. */ }
   }
   document.addEventListener('webOSRelaunch',routeLaunch,true);routeLaunch();
-  // Bounded concurrency avoids flooding the privileged bridge during startup.
-  const queue=apps.filter(a=>a.icon);
-  await Promise.all([0,1,2].map(async()=>{while(queue.length){const a=queue.shift();try {a.image=await TV.icon(a);}catch(_) { /* Keep the original fallback icon. */ }if(a.image&&!panelKind)render(focusId,false);}}));
 })();

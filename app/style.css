@@ -1,4 +1,10 @@
 @font-face{font-family:Inter;src:url('assets/InterVariable.woff2') format('woff2');font-weight:100 900;font-display:swap}
+/* TV GPU: no live backdrop blur over a 4K video plane and no full-screen filter. */
+body.tv .glass,body.tv .folder-tile{backdrop-filter:none;-webkit-backdrop-filter:none}
+body.tv #panel{background:linear-gradient(150deg,rgba(58,70,91,.95),rgba(27,37,56,.94));animation:panel-fade .1s ease-out;contain:layout style paint}
+body.tv .control{transition:background .08s}body.tv .control:focus{transform:none}
+#all-app-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:35px;padding:20px}
+@keyframes panel-fade{from{opacity:.6}to{opacity:1}}
 :root{font-family:Inter,'Helvetica Neue',Arial,sans-serif;color:#fff;background:#17243b;font-synthesis:none;--ink:#fff;--muted:#d4dce9;--panel:rgba(63,73,91,.64);--card:rgba(255,255,255,.1);--focus:#f8faff;--cols:6}
 *{box-sizing:border-box}body{margin:0;overflow:hidden}button,input{font:inherit}button{color:inherit;border:0;cursor:pointer}button:focus-visible,input:focus-visible{outline:4px solid var(--focus);outline-offset:5px}button:disabled{opacity:.4;cursor:default}[hidden]{display:none!important}#toolbar{z-index:5}#panel{z-index:10}#toast{z-index:12}
 #aerial,.wash{position:fixed;inset:0;width:100%;height:100%;object-fit:cover}#aerial{background:linear-gradient(155deg,#354b70,#1f3544 48%,#182439);z-index:0}.wash{pointer-events:none;z-index:1;background:linear-gradient(180deg,rgba(5,12,25,.08),rgba(8,16,32,.1) 30%,rgba(5,12,27,.66) 100%)}#home{bottom:140px!important}
