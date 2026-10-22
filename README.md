@@ -12,6 +12,7 @@ An independent, open-source home screen for LG TVs, inspired by the spacing, foc
 
 - Installed LG app discovery and local app artwork, including higher resolution icons where available.
 - HDMI inputs discovered from the TV rather than hard-coded labels.
+- A compact input row below the apps, hidden until Down from the last app row. Up or Back hides it; only OK selects an input.
 - Six-column standard grid or five-column large grid, keyboard/remote navigation and animated focus.
 - A compact most-used home screen seeded from Luma favourites or the same familiar brands; learns successful launches in this launcher. All apps remain accessible from the toolbar and Control Center.
 - Morning, afternoon, evening and late-night greetings with rotating phrases.
@@ -72,6 +73,7 @@ The app ID is `io.github.justmaaarco.aerialhome`. Installation adds a separate a
 | Action | Control |
 | --- | --- |
 | Navigate | Direction arrows; Magic Remote pointer also works |
+| Show / hide input row | Down from the last app row / Up or Back |
 | Open app | OK |
 | App actions / move / hide | Hold OK, or right-click in the browser |
 | Control Center | Up from the first app row; red key; or top-right button |

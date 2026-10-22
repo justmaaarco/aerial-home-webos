@@ -1,10 +1,10 @@
-# Version 0.2.1 validation and scope
+# Version 0.2.2 validation and scope
 
 This alpha was developed on 22 October 2026. tvOS 26 is the selected visual reference, not a promise of feature or pixel identity.
 
 ## Verified
 
-- Twenty-two automated tests cover core behavior, input sanitization, adaptive app selection, greeting boundaries, shuffle cycles, capability-based Dolby selection, catalogue provenance, the helper's HTTP/file-access boundaries, platform-neutral package compression headers, optional cache failures and independent startup tasks.
+- Twenty-three automated tests cover core behavior, input sanitization, adaptive app selection, greeting boundaries, shuffle cycles, capability-based Dolby selection, catalogue provenance, the helper's HTTP/file-access boundaries, platform-neutral package compression headers, optional cache failures, independent startup tasks and input-row navigation. Input focus does not launch a device; OK does.
 - Startup tests verify that cached Home is focusable before service calls, a fresh inventory renders while capabilities/HDMI remain pending, unchanged tiles survive refresh, and failed discovery leaves cached Home usable. On-TV measurements are described in [startup performance](startup.md).
 - Catalogue snapshot: 216 merged entries, 831 variants across eight official Apple manifests. Metadata probes found 114 reachable 4K Dolby Vision profile 5 URLs and 13 removed legacy HDR URLs. This does not mean every catalogue video was watched on every TV model.
 - Physical TV: native 4K Dolby Vision footage reached `play` with hardware VDEC and Dolby DM resources; the reviewed Bumpheads display capture had correct-looking colour.

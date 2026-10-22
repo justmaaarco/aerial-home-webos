@@ -16,6 +16,7 @@
   function startupMark(key){if(startup[key]===undefined)startup[key]=Math.round(performance.now());}
   function startupPaint(key){if(startup[key]===undefined)requestAnimationFrame(()=>requestAnimationFrame(()=>startupMark(key)));}
   let mediaReady=false,pendingSceneId=null,inputsLoading=false;
+  let inputRowOpen=false,inputReturnFocus=null;
   if(cached?.caps)caps=cached.caps;
   function persistStartup(){if(TV.live)cache.save(apps,caps);}
   const scenes=APPLE_AERIALS.scenes,bag=new ShuffleBag(),sceneMap=new Map(scenes.map(s=>[s.id,s]));
@@ -88,13 +89,34 @@
   }
   function render(id=focusId,focus=true) {
     const wasGrid=document.activeElement?.classList.contains('app') && !panelKind;
-    shown=homeApps(apps,prefs);homeDirty=false;
+    shown=homeApps(apps,prefs).filter(a=>!a.input);homeDirty=false;
     const grid=$('grid');grid.replaceChildren(...shown.map(tile));
     if(shown.length){startupMark('homeDomMs');startupPaint('homePaintMs');}
     $('empty').hidden=shown.length>0;
     if(moving) Array.from(grid.children).find(b=>b.dataset.id===moving)?.classList.add('moving');
     if(focus || wasGrid) (Array.from(grid.children).find(b=>b.dataset.id===id) || grid.firstElementChild)?.focus({preventScroll:true});
     hydrateIcons(shown);
+    if(inputRowOpen)renderInputRow();
+  }
+  function renderInputRow(focus=false,column=0) {
+    const row=$('input-row');row.hidden=!inputRowOpen;if(!inputRowOpen)return;
+    const selected=document.activeElement?.classList.contains('input-button')?document.activeElement.dataset.id:null;
+    const list=apps.filter(a=>a.input);
+    row.replaceChildren(...list.map(a=>{
+      const b=el('button','input-button');b.dataset.id=a.id;b.setAttribute('aria-label',a.title);
+      const face=el('span','tile');face.innerHTML=svg('input');b.append(face,el('span','input-label',a.title));
+      b.onclick=()=>safely(()=>openApp(a));return b;
+    }));
+    if(!list.length)row.append(el('span','panel-note',inputsLoading?'Loading inputs…':'No inputs available'));
+    if(focus||selected){const buttons=Array.from(row.children).filter(b=>b.tagName==='BUTTON');(buttons.find(b=>b.dataset.id===selected)||buttons[Math.min(column,buttons.length-1)])?.focus({preventScroll:true});}
+    row.scrollIntoView({block:'nearest',behavior:'auto'});
+  }
+  function showInputRow(column=0) {
+    inputReturnFocus=focusId;inputRowOpen=true;document.body.classList.add('inputs-open');renderInputRow(true,column);
+  }
+  function hideInputRow(focus=true) {
+    if(!inputRowOpen)return;inputRowOpen=false;$('input-row').hidden=true;document.body.classList.remove('inputs-open');
+    if(focus)(Array.from($('grid').children).find(b=>b.dataset.id===inputReturnFocus)||$('grid').firstElementChild||$('apps-button')).focus({preventScroll:true});
   }
   async function openApp(app) {
     if(app.folder) { folder(app);return; }
@@ -179,7 +201,7 @@
     control(p,'Hidden apps','tv',String(prefs.hidden.length),hiddenApps);
     control(p,'Profile name','person',prefs.profile,profile);
     control(p,'LG TV settings','settings','',()=>TV.live?TV.launch('com.palm.app.settings'):toast('Preview: opens LG TV settings'));
-    section(p,'ABOUT');note(p,'Aerial Home 0.2.1 · Independent open-source launcher. Built for webOS. Not affiliated with Apple or LG.');
+    section(p,'ABOUT');note(p,'Aerial Home 0.2.2 · Independent open-source launcher. Built for webOS. Not affiliated with Apple or LG.');
     note(p,TV.live?'Connected to LG webOS. Homebrew Channel supplies app discovery and local artwork.':'Browser preview — sample tiles are original placeholder artwork. Real installed apps appear on the TV.');
   }
   function aerialSettings() {
@@ -364,11 +386,11 @@
   addEventListener('keydown',e=>{
     if(activity()){e.preventDefault();return;}
     const back=e.key==='Escape'||e.keyCode===461||e.key==='Backspace'&&!/INPUT/.test(document.activeElement?.tagName);
-    if(back) {e.preventDefault();if(moving){moving=null;if(moveOriginal){prefs.order=moveOriginal;save();moveOriginal=null;}render();$('hint').textContent='↑ Control Center';}else if(panelKind)closePanel();else controls();return;}
+    if(back) {e.preventDefault();if(moving){moving=null;if(moveOriginal){prefs.order=moveOriginal;save();moveOriginal=null;}render();$('hint').textContent='↓ Inputs · ↑ Control Center';}else if(panelKind)closePanel();else if(inputRowOpen)hideInputRow();else controls();return;}
     if(e.key==='Enter' && !/INPUT/.test(document.activeElement?.tagName)) {
       e.preventDefault();if(heldKey || e.repeat)return;heldKey='Enter';longPress=false;
       const id=document.activeElement?.dataset?.id;
-      if(id&&(!panelKind||panelKind==='all-apps')&&!moving)holdTimer=setTimeout(()=>{longPress=true;appMenu(apps.find(a=>a.id===id)||prefs.folders.find(f=>f.id===id));},850);
+      if(id&&!document.activeElement.classList.contains('input-button')&&(!panelKind||panelKind==='all-apps')&&!moving)holdTimer=setTimeout(()=>{longPress=true;appMenu(apps.find(a=>a.id===id)||prefs.folders.find(f=>f.id===id));},850);
       else{longPress=true;document.activeElement?.click();}
       return;
     }
@@ -388,9 +410,16 @@
       const i=all.indexOf(document.activeElement),delta=dir==='down'||dir==='right'?1:-1;
       all[Math.max(0,Math.min(all.length-1,i+delta))]?.focus();return;
     }
+    if(document.activeElement?.classList.contains('input-button')){
+      if(dir==='up'){hideInputRow();return;}
+      const buttons=Array.from($('input-row').children),at=buttons.indexOf(document.activeElement);
+      if(dir==='left'||dir==='right')buttons[Math.max(0,Math.min(buttons.length-1,at+(dir==='left'?-1:1)))]?.focus();return;
+    }
     const current=Array.from($('grid').children),index=current.indexOf(document.activeElement);
-    if(index<0){const buttons=[$('apps-button'),$('search-button'),$('controls-button')],at=buttons.indexOf(document.activeElement);if(dir==='down')current[0]?.focus();else if(dir==='left'||dir==='right')buttons[Math.max(0,Math.min(2,(at<0?1:at)+(dir==='left'?-1:1)))]?.focus();return;}
+    if(inputRowOpen&&dir==='up'){hideInputRow();return;}
+    if(index<0){const buttons=[$('apps-button'),$('search-button'),$('controls-button')],at=buttons.indexOf(document.activeElement);if(dir==='down'){if(current.length)current[0].focus();else showInputRow();}else if(dir==='left'||dir==='right')buttons[Math.max(0,Math.min(2,(at<0?1:at)+(dir==='left'?-1:1)))]?.focus();return;}
     const next=nextIndex(index,dir,current.length,prefs.columns);
+    if(dir==='down'&&!moving&&index>=Math.floor((current.length-1)/prefs.columns)*prefs.columns){showInputRow(index%prefs.columns);return;}
     if(next<0){if(!moving)controls();return;}
     if(moving&&next!==index) {
       if(!moveOriginal)moveOriginal=prefs.order.slice();
@@ -421,7 +450,7 @@
       apps=inventory.map(a=>{const old=previous.get(a.id);if(old?.image&&(old.artworkKey||AerialCache.iconKey(old))===AerialCache.iconKey(a)){a.image=old.image;a.color=old.color;a.artworkKey=old.artworkKey;}return a;});
       if(!prefs.favorites.length){prefs.favorites=starterFavorites(apps);save();}
       persistStartup();
-      const next=homeApps(apps,prefs);
+      const next=homeApps(apps,prefs).filter(a=>!a.input);
       if(next.length!==shown.length||next.some((a,i)=>a.id!==shown[i].id||a.title!==shown[i].title))render(focusId,!cached?.apps.length&&!panelKind);
       else{shown=next;hydrateIcons(shown);}
     }catch(error){
@@ -431,15 +460,17 @@
     // Input discovery is independent of both the first usable Home and video startup.
     inputsLoading=true;
     TV.listInputs().then(list=>{
-      for(const a of list)if(!apps.some(x=>x.id===a.id))apps.push(a);
+      for(const a of list){const existing=apps.find(x=>x.id===a.id);if(existing)existing.title=a.title;else apps.push(a);}
       inputsLoading=false;
       persistStartup();if(prefs.homeMode==='all'&&!panelKind)render(focusId,false);
       if(panelKind==='inputs')inputs();
+      if(inputRowOpen)renderInputRow(true);
     }).catch(()=>{inputsLoading=false;if(panelKind==='inputs')inputs();});
   }
   function routeLaunch(event) {
     try {
       const params=event?.detail || JSON.parse(window.PalmSystem?.launchParams || '{}');
+      if(event&&!params.screen){if(panelKind)closePanel();hideInputRow();}
       if(params.mediaServer!==undefined){prefs.mediaServer=clean({...prefs,mediaServer:params.mediaServer}).mediaServer;failedScenes.clear();save();}
       const routes={controls,settings,inputs,search,aerials:aerialSettings,apps:allApps};
       if(params.sceneId&&sceneMap.has(params.sceneId)){if(mediaReady)playScene(params.sceneId);else pendingSceneId=params.sceneId;}
