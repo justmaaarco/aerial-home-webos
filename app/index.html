@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>Aerial Home</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <video id="aerial" muted playsinline preload="metadata" aria-hidden="true"></video>
+  <div class="wash" aria-hidden="true"></div>
+  <main id="stage">
+    <header id="toolbar">
+      <div class="identity"><span class="brand-mark">◒</span><span id="profile-name">Home</span></div>
+      <div class="toolbar-actions">
+        <button class="glass pill" id="search-button" aria-label="Search apps"></button>
+        <button class="glass pill" id="controls-button" aria-label="Control Center"></button>
+        <time id="clock"></time>
+      </div>
+    </header>
+    <section id="home" aria-label="Apps and inputs">
+      <div id="hero"><div id="hero-greeting">Your evening, beautifully simple.</div><div class="hero-subtitle" id="hero-subtitle">Everything you love. One place.</div></div>
+      <div id="grid" role="group" aria-label="Apps"></div>
+      <p id="empty" hidden>No matching apps</p>
+    </section>
+    <div id="scene-caption"><span class="location-dot"></span><span id="scene-title">New York City</span><span class="quality">4K AERIAL</span></div>
+    <footer><span id="hint">↑ Control Center</span><span>Aerial Home</span></footer>
+    <aside id="panel" class="glass" aria-modal="true" role="dialog" aria-labelledby="panel-title" hidden></aside>
+    <div id="toast" role="status" hidden></div>
+    <div id="saver-caption" hidden><time id="saver-clock"></time><span id="saver-place"></span></div>
+  </main>
+  <script src="core.js"></script>
+  <script src="bridge.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

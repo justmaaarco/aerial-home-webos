@@ -1,0 +1,19 @@
+name: Check and package
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: node --test test/*.test.cjs
+      - run: node --check app/app.js && node --check app/bridge.js
+      - run: node tools/package.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: aerial-home-webos
+          path: dist/*

@@ -1,0 +1,13 @@
+{
+  "name": "aerial-home-webos",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An independent glass-inspired home screen for rooted LG webOS TVs",
+  "license": "MIT",
+  "scripts": {
+    "start": "node tools/serve.cjs",
+    "test": "node --test test/*.test.cjs",
+    "build": "node tools/package.cjs"
+  },
+  "engines": { "node": ">=22" }
+}

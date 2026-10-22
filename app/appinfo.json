@@ -1,0 +1,13 @@
+{
+  "id": "io.github.justmaaarco.aerialhome",
+  "version": "0.1.0",
+  "vendor": "Aerial Home contributors",
+  "type": "web",
+  "main": "index.html",
+  "title": "Aerial Home",
+  "icon": "icon.png",
+  "largeIcon": "icon.png",
+  "resolution": "1920x1080",
+  "bgColor": "#10213e",
+  "disableBackHistoryAPI": true
+}
