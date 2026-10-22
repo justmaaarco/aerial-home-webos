@@ -6,3 +6,15 @@ node_modules/
 test-results/
 __pycache__/
 *.pyc
+work/
+private/
+captures/
+backups/
+*.pem
+*.key
+*.p12
+*.pfx
+id_ed25519*
+id_rsa*
+*.sqlite*
+config.local.*

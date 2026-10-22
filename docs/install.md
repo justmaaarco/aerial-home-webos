@@ -5,7 +5,7 @@ Build the IPK with `node tools/package.cjs`. Compare its checksum with the publi
 Use webOS Dev Manager's package installer with a TV connection that is already configured, or the LG CLI:
 
 ```sh
-ares-install --device YOUR_TV dist/io.github.justmaaarco.aerialhome_0.2.0_all.ipk
+ares-install --device YOUR_TV dist/io.github.justmaaarco.aerialhome_0.2.2_all.ipk
 ares-launch --device YOUR_TV io.github.justmaaarco.aerialhome
 ```
 

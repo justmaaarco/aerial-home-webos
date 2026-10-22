@@ -1,0 +1,32 @@
+name: Bug report
+description: Report a reproducible launcher issue without private device information.
+body:
+  - type: markdown
+    attributes:
+      value: "For security issues, use private vulnerability reporting. Remove addresses, account names, keys and personal app details from logs or screenshots."
+  - type: input
+    id: version
+    attributes:
+      label: App and webOS versions
+      placeholder: Aerial Home 0.2.2, webOS 9.2.4
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Where did this happen?
+      options:
+        - Physical rooted TV
+        - Desktop browser preview

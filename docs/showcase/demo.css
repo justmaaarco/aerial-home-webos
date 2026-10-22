@@ -1,0 +1,7 @@
+/* Demo-only still image; the production TV app does not load this stylesheet. */
+#aerial{background:#163b49 url('/showcase/original-coast.png') center/cover no-repeat}
+#aerial,.wash{width:min(100vw,177.7778vh);height:min(56.25vw,100vh);right:auto;bottom:auto}
+.wash{background:linear-gradient(180deg,rgba(4,13,22,.3),rgba(5,18,26,.14) 30%,rgba(4,14,24,.72))}
+#scene-caption{display:none}
+footer span:last-child::before{content:'Browser demo · ';}
+body{background:#071820}

@@ -1,12 +1,20 @@
 # Aerial Home for webOS
 
-An independent, open-source home screen for LG TVs, inspired by the spacing, focus behavior and translucent controls of tvOS 26. Built from scratch in HTML, CSS and JavaScript. MIT licensed.
+[![Checks](https://github.com/justmaaarco/aerial-home-webos/actions/workflows/ci.yml/badge.svg)](https://github.com/justmaaarco/aerial-home-webos/actions/workflows/ci.yml)
+
+**A calmer home for your TV.** An independent, open-source home screen for LG TVs, inspired by the spacing, focus behavior and translucent controls of tvOS 26. Built from scratch in HTML, CSS and JavaScript. MIT licensed.
 
 **Early alpha.** This is a working launcher, not a complete tvOS implementation or a pixel-identical replica. It launches LG apps and inputs. It cannot install tvOS apps or reproduce Apple's private services.
 
-![Home screen browser preview](docs/home-preview.png)
+![Aerial Home sharing card with an actual browser preview and original demo scenery](docs/screenshots/07-share-card.jpg)
 
-![Control Center browser preview](docs/control-center-preview.png)
+**[Download the latest alpha](https://github.com/justmaaarco/aerial-home-webos/releases) · [Install](docs/install.md) · [Screenshot gallery](docs/screenshots/README.md) · [Security](SECURITY.md)**
+
+| Home | Control Center |
+| --- | --- |
+| ![Browser Home demo](docs/screenshots/01-home.jpg) | ![Browser Control Center demo](docs/screenshots/03-control-center.jpg) |
+
+Public screenshots use original demo icons and an AI-generated scenic still, not personal TV captures or Apple video frames. They show the actual browser preview, with the demo scenery identified in the footer. [View the full set and reproduction notes](docs/screenshots/README.md).
 
 ## Included
 
@@ -37,12 +45,13 @@ node tools/serve.cjs
 # Open http://127.0.0.1:5178
 
 node --test test/*.test.cjs
+node tools/check-public.cjs
 node tools/package.cjs
 ```
 
 The package and SHA-256 checksum are written to `dist/`. The reproducible packager produces a standard IPK with no installation scripts. CI also builds an artifact.
 
-The desktop preview uses original sample tiles and a gradient backdrop. The included HEVC MOV aerials require a compatible hardware decoder; the preview does not claim desktop playback support.
+The normal desktop preview uses original sample tiles and a gradient backdrop. For the public scenic demo, run `node tools/showcase.cjs` and open the printed local address. Its original still-image backdrop and presentation assets stay outside the TV package. HEVC MOV aerial playback requires a compatible hardware decoder; browser screenshots do not demonstrate video playback support.
 
 ## Aerial catalogue and quality
 
@@ -94,3 +103,5 @@ This project is not affiliated with or endorsed by Apple or LG. Apple TV, tvOS a
 ## Contributing
 
 Keep shell operations restricted to the explicit adapter commands and validated local application asset paths. Do not add general command execution, tokens, TV addresses, personal app inventories or private screenshots to the repository. Hardware behavior must be reported separately from browser tests. Visual parity needs reference screenshots and measured comparison before it can be claimed.
+
+See [contributing](CONTRIBUTING.md), [security and privacy](SECURITY.md), and the [public sharing review](docs/public-sharing.md). GitHub secret scanning/push protection and full-history secret scanning in CI help catch accidental leaks; they are not a substitute for review.
