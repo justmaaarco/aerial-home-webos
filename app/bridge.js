@@ -47,7 +47,7 @@
     {id:'demo-hdmi2',title:'HDMI 2',glyph:'input',color:'#27354c',input:true},
     {id:'demo-browser',title:'Browser',glyph:'globe',color:'#2191d4'}
   ];
-  async function listApps() {
+  async function listApps({includeInputs=true}={}) {
     if(!live) return samples.map(a=>({...a}));
     let r;
     try { r=await call('luna://com.webos.applicationManager/listLaunchPoints'); }
@@ -56,15 +56,14 @@
       id:a.id,title:a.title,icon:a.largeIcon || a.icon,iconBase:a.folderPath || '',
       glyph:/hdmi/.test(a.id)?'input':'play',input:/hdmi/.test(a.id),color:'#394b68'
     }));
-    try {
-      const e=await rootCommand('inputs');
-      for(const input of e.devices || e.deviceList || []) {
-        const id=input.appId || input.app_id;
-        if(id && /^com\.(webos|palm)\.app\.hdmi[1-4]$/.test(id) && !apps.some(a=>a.id===id)) apps.push({id,title:input.label || input.name || id.split('.').pop().toUpperCase(),glyph:'input',input:true,color:'#27354c'});
-      }
-    } catch (_) { /* HDMI launch points may already be present in the inventory. */ }
+    if(includeInputs)for(const input of await listInputs().catch(()=>[]))if(!apps.some(a=>a.id===input.id))apps.push(input);
     apps.push({id:'settings',title:'Settings',glyph:'settings',color:'#aab2bd'});
     return apps;
+  }
+  async function listInputs() {
+    if(!live)return samples.filter(a=>a.input).map(a=>({...a}));
+    const e=await rootCommand('inputs');
+    return (e.devices || e.deviceList || []).map(input=>({id:input.appId || input.app_id,title:input.label || input.name,glyph:'input',input:true,color:'#27354c'})).filter(a=>/^com\.(webos|palm)\.app\.hdmi[1-4]$/.test(a.id)).map(a=>({...a,title:a.title || a.id.split('.').pop().toUpperCase()}));
   }
   async function icon(app) {
     if(live && /^[a-zA-Z0-9._-]+$/.test(app.id || '')) {
@@ -105,5 +104,5 @@
     return {dolbyVision:c['tv.config.supportDolbyHDRContents']===true,hdr10:c['tv.model.supportHDR']===true,uhd:['UD','8K'].includes(c['tv.hw.panelResolution'])};
   }
   async function lumaFavorites() {if(!live)return [];try {const p=await rootCommand('favorites');return Array.isArray(p.favorites)?p.favorites.filter(id=>typeof id==='string'):[];}catch(_){return [];}}
-  window.TV={live,call,listApps,icon,launch,capabilities,lumaFavorites};
+  window.TV={live,call,listApps,listInputs,icon,launch,capabilities,lumaFavorites};
 })();

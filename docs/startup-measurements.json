@@ -1,0 +1,112 @@
+{
+  "baseline": [
+    {
+      "sample": 1,
+      "timings": {
+        "scriptMs": 517.2999999998137,
+        "gridDomMs": 1485,
+        "gridPaintMs": 1686,
+        "firstIconMs": 2090,
+        "videoMs": 2162,
+        "sampleMs": 16555
+      }
+    },
+    {
+      "sample": 2,
+      "timings": {
+        "scriptMs": 234.5,
+        "gridDomMs": 967,
+        "gridPaintMs": 1273,
+        "firstIconMs": 1286,
+        "videoMs": 1398,
+        "sampleMs": 16240
+      }
+    },
+    {
+      "sample": 3,
+      "timings": {
+        "scriptMs": 246.5,
+        "gridDomMs": 782,
+        "gridPaintMs": 872,
+        "firstIconMs": 1210,
+        "videoMs": 1266,
+        "sampleMs": 16261
+      }
+    }
+  ],
+  "unit": "milliseconds from page navigation",
+  "platform": "LG B4 / webOS 9.2.4",
+  "updated": [
+    {
+      "sample": 1,
+      "timings": {
+        "scriptMs": 244.40000000037253,
+        "gridDomMs": 449,
+        "gridPaintMs": 813,
+        "firstIconMs": 1066,
+        "videoMs": 1235,
+        "sampleMs": 16250,
+        "startup": {
+          "scriptMs": 258,
+          "cachedHome": true,
+          "homeDomMs": 341,
+          "homePaintMs": 811,
+          "capabilitiesMs": 824,
+          "videoRequestedMs": 850,
+          "cachedIconMs": 883,
+          "inventoryMs": 923,
+          "firstIconMs": 1066,
+          "videoPlayingMs": 1236
+        }
+      }
+    },
+    {
+      "sample": 2,
+      "timings": {
+        "scriptMs": 390.3999999985099,
+        "gridDomMs": 889,
+        "gridPaintMs": 920,
+        "videoMs": 1471,
+        "firstIconMs": 1585,
+        "sampleMs": 16398,
+        "startup": {
+          "scriptMs": 426,
+          "cachedHome": true,
+          "homeDomMs": 541,
+          "homePaintMs": 919,
+          "capabilitiesMs": 975,
+          "videoRequestedMs": 1004,
+          "inventoryMs": 1058,
+          "cachedIconMs": 1070,
+          "videoPlayingMs": 1472,
+          "firstIconMs": 1585
+        }
+      }
+    },
+    {
+      "sample": 3,
+      "timings": {
+        "scriptMs": 207.19999999925494,
+        "gridDomMs": 329,
+        "gridPaintMs": 345,
+        "videoMs": 2193,
+        "firstIconMs": 2209,
+        "sampleMs": 16213,
+        "startup": {
+          "scriptMs": 226,
+          "cachedHome": true,
+          "homeDomMs": 295,
+          "homePaintMs": 345,
+          "capabilitiesMs": 378,
+          "videoRequestedMs": 413,
+          "cachedIconMs": 550,
+          "inventoryMs": 578,
+          "videoPlayingMs": 2194,
+          "firstIconMs": 2209
+        }
+      }
+    }
+  ],
+  "updatedVersion": "0.2.1",
+  "baselineVersion": "0.2.0"
+}

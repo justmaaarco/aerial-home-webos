@@ -8,6 +8,16 @@
   let apps=[],shown=[],focusId=null,panelKind=null,moving=null,saver=false,lastActivity=Date.now(),toastTimer,videoFailed=0;
   let returnFocus=null,videoSuspended=false,homeDirty=false,greetingKey='',lastGreetingIndex=-1;
   let caps={dolbyVision:false,hdr10:false,uhd:true};
+  let startupStorage,artworkDatabase;
+  try{startupStorage=window.localStorage;}catch(_){}
+  try{artworkDatabase=window.indexedDB;}catch(_){}
+  const cache=AerialCache.create(startupStorage,artworkDatabase),cached=TV.live?cache.read():null;
+  const startup=window.AerialStartup={scriptMs:Math.round(performance.now()),cachedHome:!!cached?.apps.length};
+  function startupMark(key){if(startup[key]===undefined)startup[key]=Math.round(performance.now());}
+  function startupPaint(key){if(startup[key]===undefined)requestAnimationFrame(()=>requestAnimationFrame(()=>startupMark(key)));}
+  let mediaReady=false,pendingSceneId=null,inputsLoading=false;
+  if(cached?.caps)caps=cached.caps;
+  function persistStartup(){if(TV.live)cache.save(apps,caps);}
   const scenes=APPLE_AERIALS.scenes,bag=new ShuffleBag(),sceneMap=new Map(scenes.map(s=>[s.id,s]));
   let currentScene=null,currentVariant=null,playGeneration=0,startTimer,playRequest=false,preparingTitle='';
   const failedVariants=new Set(),failedScenes=new Set();
@@ -65,7 +75,7 @@
     if(app.folder) {
       app.apps.slice(0,6).forEach(id=>{const a=apps.find(a=>a.id===id);if(a){const d=el('span','folder-dot',a.title[0]);face.append(d);}});
     } else if(app.image) {
-      const img=el('img');img.src=app.image;img.alt='';img.onerror=()=>{img.remove();face.innerHTML=svg(app.glyph);};face.append(img);
+      const img=el('img');img.onload=()=>startupPaint('firstIconMs');img.src=app.image;img.alt='';img.onerror=()=>{img.remove();face.innerHTML=svg(app.glyph);};face.append(img);
     } else face.innerHTML=svg(app.glyph);
     b.append(face,el('span','app-label',app.title));
     b.onfocus=()=>{focusId=app.id;};
@@ -80,6 +90,7 @@
     const wasGrid=document.activeElement?.classList.contains('app') && !panelKind;
     shown=homeApps(apps,prefs);homeDirty=false;
     const grid=$('grid');grid.replaceChildren(...shown.map(tile));
+    if(shown.length){startupMark('homeDomMs');startupPaint('homePaintMs');}
     $('empty').hidden=shown.length>0;
     if(moving) Array.from(grid.children).find(b=>b.dataset.id===moving)?.classList.add('moving');
     if(focus || wasGrid) (Array.from(grid.children).find(b=>b.dataset.id===id) || grid.firstElementChild)?.focus({preventScroll:true});
@@ -148,7 +159,7 @@
   function inputs() {
     const p=panel('Inputs','inputs');const list=apps.filter(a=>a.input);
     list.forEach(a=>control(p,a.title,'input','',()=>openApp(a)));
-    if(!list.length)note(p,'No HDMI launch points were reported by the TV.');
+    if(!list.length)note(p,inputsLoading?'Loading HDMI inputs…':'No HDMI launch points were reported by the TV.');
   }
   function profile() {
     const p=panel('Profile','profile');const input=el('input');input.type='text';input.maxLength=32;input.value=prefs.profile;input.setAttribute('aria-label','Profile name');p.append(input);
@@ -168,7 +179,7 @@
     control(p,'Hidden apps','tv',String(prefs.hidden.length),hiddenApps);
     control(p,'Profile name','person',prefs.profile,profile);
     control(p,'LG TV settings','settings','',()=>TV.live?TV.launch('com.palm.app.settings'):toast('Preview: opens LG TV settings'));
-    section(p,'ABOUT');note(p,'Aerial Home 0.2.0 · Independent open-source launcher. Built for webOS. Not affiliated with Apple or LG.');
+    section(p,'ABOUT');note(p,'Aerial Home 0.2.1 · Independent open-source launcher. Built for webOS. Not affiliated with Apple or LG.');
     note(p,TV.live?'Connected to LG webOS. Homebrew Channel supplies app discovery and local artwork.':'Browser preview — sample tiles are original placeholder artwork. Real installed apps appear on the TV.');
   }
   function aerialSettings() {
@@ -312,7 +323,7 @@
       currentScene=scene;currentVariant=variant;bag.last=scene.id;
       bag.bag=bag.bag.filter(other=>other!==scene.id);
       $('scene-title').textContent=scene.title;$('saver-place').textContent=scene.title;$('scene-quality').textContent=qualityLabel(variant);
-      preparingTitle='';clearTimeout(startTimer);video.loop=false;video.src=source;video.muted=true;
+      preparingTitle='';clearTimeout(startTimer);video.loop=false;video.src=source;video.muted=true;startupMark('videoRequestedMs');
       startTimer=setTimeout(()=>failedVideo(),25000);
       video.play().catch(()=>{if(generation===playGeneration)failedVideo();});
     }catch(error){
@@ -330,6 +341,7 @@
   }
   video.onended=()=>{if(!playRequest)playScene(null,true);};video.onerror=()=>{if(video.error)failedVideo();};
   video.onplaying=()=>{
+    startupMark('videoPlayingMs');
     clearTimeout(startTimer);videoFailed=0;
     // Prepare at most one likely upcoming Mac clip; keep actual playback native when possible.
     if(prefs.mediaServer){const next=bag.bag.slice(0,3).map(id=>sceneMap.get(id)).find(s=>choices(s)[0]?.fps>60);if(next)helperJSON('/api/prepare/'+encodeURIComponent(next.id)).catch(()=>{});}
@@ -391,27 +403,63 @@
   function hydrateIcons(list) {
     for(const app of list){if(app.icon&&!app.image&&!iconPending.has(app.id)){iconPending.add(app.id);iconQueue.push(app);}}
     while(iconWorkers<2&&iconQueue.length){iconWorkers++;(async()=>{try{
-      while(iconQueue.length){const a=iconQueue.shift();try{a.image=await TV.icon(a);}catch(_){}if(!a.image)continue;
-        for(const button of document.querySelectorAll('.app')){if(button.dataset.id!==a.id)continue;const face=button.querySelector('.tile'),img=el('img');img.src=a.image;img.alt='';face.style.setProperty('--tile',a.color);face.replaceChildren(img);}
+      while(iconQueue.length){const a=iconQueue.shift(),source=AerialCache.iconKey(a);a.artworkKey=source;
+        try{const saved=TV.live?await cache.icon(a):null;if(saved){a.image=saved.image;if(/^#[0-9a-f]{6}$/i.test(saved.color||''))a.color=saved.color;startupMark('cachedIconMs');}else{const asset={...a};a.image=await TV.icon(asset);a.color=asset.color;if(TV.live&&a.image)cache.putIcon(a,source);}}catch(_){}
+        if(!a.image){iconPending.delete(a.id);continue;}
+        const current=apps.find(x=>x.id===a.id);
+        if(!current||(current!==a&&(current.artworkKey||AerialCache.iconKey(current))!==source)){iconPending.delete(a.id);if(current)hydrateIcons([current]);continue;}
+        if(current!==a){current.image=a.image;current.color=a.color;current.artworkKey=source;}
+        for(const button of document.querySelectorAll('.app')){if(button.dataset.id!==a.id)continue;const face=button.querySelector('.tile'),img=el('img');img.onload=()=>startupPaint('firstIconMs');img.src=a.image;img.alt='';img.onerror=()=>{img.remove();face.innerHTML=svg(a.glyph);};face.style.setProperty('--tile',a.color);face.replaceChildren(img);}
+        iconPending.delete(a.id);
       }
     }finally{iconWorkers--;}})();}
   }
-  try {
-    const [inventory,device,favorites]=await Promise.all([TV.listApps(),TV.capabilities().catch(()=>caps),prefs.selectionImported?Promise.resolve([]):TV.lumaFavorites()]);
-    apps=inventory;caps=device;
-    if(!prefs.selectionImported){if(!prefs.favorites.length)prefs.favorites=favorites.length?favorites:starterFavorites(apps);prefs.selectionImported=true;save();}
-    render();
+  async function refreshInventory() {
+    try {
+      const inventory=await TV.listApps({includeInputs:false});startupMark('inventoryMs');
+      const previous=new Map(apps.map(a=>[a.id,a]));
+      apps=inventory.map(a=>{const old=previous.get(a.id);if(old?.image&&(old.artworkKey||AerialCache.iconKey(old))===AerialCache.iconKey(a)){a.image=old.image;a.color=old.color;a.artworkKey=old.artworkKey;}return a;});
+      if(!prefs.favorites.length){prefs.favorites=starterFavorites(apps);save();}
+      persistStartup();
+      const next=homeApps(apps,prefs);
+      if(next.length!==shown.length||next.some((a,i)=>a.id!==shown[i].id||a.title!==shown[i].title))render(focusId,!cached?.apps.length&&!panelKind);
+      else{shown=next;hydrateIcons(shown);}
+    }catch(error){
+      if(!apps.length){apps=[{id:'settings',title:'Settings',glyph:'settings',color:'#aab2bd'}];render();}
+      toast('App discovery failed: '+error.message);
+    }
+    // Input discovery is independent of both the first usable Home and video startup.
+    inputsLoading=true;
+    TV.listInputs().then(list=>{
+      for(const a of list)if(!apps.some(x=>x.id===a.id))apps.push(a);
+      inputsLoading=false;
+      persistStartup();if(prefs.homeMode==='all'&&!panelKind)render(focusId,false);
+      if(panelKind==='inputs')inputs();
+    }).catch(()=>{inputsLoading=false;if(panelKind==='inputs')inputs();});
   }
-  catch(error) { apps=[{id:'settings',title:'Settings',glyph:'settings',color:'#aab2bd'}];render();toast('App discovery failed: '+error.message); }
-  playScene(prefs.shuffle?null:prefs.sceneId || null);
   function routeLaunch(event) {
     try {
       const params=event?.detail || JSON.parse(window.PalmSystem?.launchParams || '{}');
       if(params.mediaServer!==undefined){prefs.mediaServer=clean({...prefs,mediaServer:params.mediaServer}).mediaServer;failedScenes.clear();save();}
       const routes={controls,settings,inputs,search,aerials:aerialSettings,apps:allApps};
-      if(params.sceneId&&sceneMap.has(params.sceneId))playScene(params.sceneId);
+      if(params.sceneId&&sceneMap.has(params.sceneId)){if(mediaReady)playScene(params.sceneId);else pendingSceneId=params.sceneId;}
       if(Object.hasOwn(routes,params.screen))routes[params.screen]();
     } catch (_) { /* Missing launch params simply open Home. */ }
   }
-  document.addEventListener('webOSRelaunch',routeLaunch,true);routeLaunch();
+  document.addEventListener('webOSRelaunch',routeLaunch,true);
+  if(cached?.apps.length){apps=cached.apps;render();}
+  routeLaunch();
+  function startBackgroundTasks(){
+    refreshInventory();
+    // Capabilities can gate format selection, but never gate Home rendering.
+    TV.capabilities().then(device=>{caps=device;startupMark('capabilitiesMs');persistStartup();}).catch(()=>{}).finally(()=>{
+      mediaReady=true;playScene(pendingSceneId || (prefs.shuffle?null:prefs.sceneId || null));
+    });
+    if(!prefs.selectionImported)TV.lumaFavorites().then(favorites=>{
+      if(favorites.length)prefs.favorites=favorites;
+      prefs.selectionImported=true;save();if(apps.length&&!panelKind)render(focusId,false);
+    }).catch(()=>{});
+  }
+  // Give cached Home its first frame before starting service calls.
+  if(cached?.apps.length)requestAnimationFrame(()=>setTimeout(startBackgroundTasks,0));else startBackgroundTasks();
 })();

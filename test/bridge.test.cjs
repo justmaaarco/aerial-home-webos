@@ -27,3 +27,10 @@ test('artwork reader rejects shell characters, traversal and unrelated files',as
   assert.equal(calls.length,0);
   assert.equal(await TV.icon({icon:'/media/cryptofs/apps/usr/palm/applications/a/icon.png'}),'data:image/png;base64,YWJj');assert.equal(calls.length,1);
 });
+test('first app inventory can finish without waiting for HDMI discovery',async()=>{
+  const {TV,calls}=setup((uri,p)=>{
+    if(uri.includes('listLaunchPoints'))return {returnValue:true,launchPoints:[{id:'netflix',title:'Netflix'}]};
+    throw Error('HDMI must not be requested during first inventory');
+  });
+  const apps=await TV.listApps({includeInputs:false});assert.equal(apps[0].id,'netflix');assert.equal(calls.length,1);
+});
