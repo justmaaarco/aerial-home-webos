@@ -1,10 +1,14 @@
-# Version 0.2.3 validation and scope
+# Version 0.2.4 candidate validation and scope
+
+Static-element protection is prepared locally and has not been deployed. Physical-TV results below refer to earlier versions; hardware validation of the new pixel shifting and idle fade/hide is pending.
 
 This alpha was developed on 22 October 2026. tvOS 26 is the selected visual reference, not a promise of feature or pixel identity.
 
 ## Verified
 
-- Twenty-seven automated tests cover core behavior, input sanitization, adaptive app selection, greeting boundaries, shuffle cycles, capability-based Dolby selection, catalogue provenance, the helper's HTTP/file-access boundaries, platform-neutral package compression headers, optional cache failures, independent startup tasks, input-row navigation and OLED idle/wake behavior. Input focus does not launch a device; OK does.
+- Thirty-two automated tests cover core behavior, input sanitization, adaptive app selection, greeting boundaries, shuffle cycles, capability-based Dolby selection, catalogue provenance, the helper's HTTP/file-access boundaries, platform-neutral package compression headers, optional cache failures, independent startup tasks, input-row navigation and OLED idle/wake behavior. Input focus does not launch a device; OK does.
+- Candidate static-element care: bounded nine-position shifts, Reduce motion, 2-minute fade and 5-minute hide, off mode, preserved menus, stable preview states, consumed wake inputs and background reset pass clock-driven tests. Hardware checks remain pending.
+- Local browser: all launcher controls/captions/toasts are descendants of the shifted UI plane, with video outside it. Observed the scheduled four-pixel horizontal shift, 45% UI opacity in fade preview, zero UI opacity/pointer events in hide preview while video opacity remained 1, and immediate restoration to the same focused control after one OK press.
 - OLED dimming: clock-driven tests verify the 30-minute deadline, activity reset, off setting, menu/saver coverage, background/foreground handling, Home relaunch and consumed wake keys/clicks. Browser preview verified a 97% black overlay and first-OK wake without reactivating the focused control. See [behavior and limits](oled-dimming.md).
 - Physical LG B4: installed 0.2.3, opened OLED dimming through remote navigation, verified the preview darkened both the interface and native Dolby Vision aerial, then sent one OK press. The same menu and focused Preview control returned without reactivating dimming, and the aerial remained in `play`. The automatic 30-minute boundary was tested with a simulated clock rather than a 30-minute on-TV wait.
 - Startup tests verify that cached Home is focusable before service calls, a fresh inventory renders while capabilities/HDMI remain pending, unchanged tiles survive refresh, and failed discovery leaves cached Home usable. On-TV measurements are described in [startup performance](startup.md).

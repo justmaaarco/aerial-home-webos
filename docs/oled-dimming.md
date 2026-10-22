@@ -1,13 +1,25 @@
-# OLED dimming
+# OLED care
 
-Open **Settings → OLED dimming**. The option is on by default, including after an upgrade, and can be turned off. **Preview dimming** shows the effect immediately.
+The static-element additions in 0.2.4 are a local candidate, not yet deployed or validated on a physical TV. Version 0.2.3 retains its original 30-minute dimming option under **Settings → OLED dimming**.
+
+In the candidate, open **Settings → OLED care**. **Protect static elements** and **Dim after 30 minutes idle** are independent switches, both on by default. Each idle state has a preview that lasts until interaction.
+
+## Static elements
+
+The entire interface moves together through nine positions once per minute, bounded to four CSS pixels in each direction. This includes installed app tiles, focus highlights, greetings, the toolbar and clock, inputs, folders, menus, toasts, the footer, and screen-saver captions. The fixed video background keeps its full-screen coverage. On the TV's 1080p UI plane, these offsets correspond to UI pixels; the final physical pixel distance depends on display scaling.
+
+After two idle minutes, the whole UI fades to 45% opacity. After five, it becomes invisible so only the aerial/background remains. These timers also cover open menus and work with video backgrounds and the screen saver disabled. The first navigation/OK press restores the interface and is consumed, including repeats until release. Pointer movement wakes it too; a waking click or wheel event is consumed. Menus retain their state and focus unless waking the screen saver, which already returns to Home.
+
+Pixel shifting continues on its minute schedule while the interface is in use. It does not restart with each interaction, so regular remote activity does not leave the interface at its initial position. **Reduce motion** disables shifting and animated fades while retaining the idle fade/hide states. The protection uses the existing five-second idle check, with no continuous movement loop or full-screen filter.
+
+## Full-screen dimming
 
 After 30 minutes without remote, keyboard or pointer interaction, a 97% black overlay covers the complete launcher, including open menus, captions and the screen saver. The existing five-second idle check triggers it within five seconds of the deadline. Aerial playback continues underneath. The overlay uses a simple composite without extra blur effects.
 
-The first navigation/OK press wakes the interface without activating the focused app or input. Holding that wake key does not navigate or launch anything until it is released. Pointer movement also wakes the interface; a click that wakes it is consumed. The menu and focus stay in place when waking from the dimmer alone. Waking the screen saver returns to Home as before.
-
 The timer resets when the app returns to the foreground or receives a Home relaunch. It runs while Aerial Home is visible, even with video backgrounds or the screen saver disabled. It does not dim other TV apps or HDMI devices, set a power-off timer, or alter LG OLED care settings. Keep LG's built-in OLED care enabled: this reduces light output but cannot guarantee protection against burn-in.
 
-Automated clock-driven tests cover the 30-minute boundary, activity reset, disabled mode, open menus, screen saver, foreground return, Home relaunch, held wake keys, and clicks without accidental app/input launches. Browser preview checks cover full-screen overlay and first-OK wake behavior.
+## Validation
+
+Automated clock-driven tests cover the 2-, 5- and 30-minute boundaries, bounded pixel-shift cycles, Reduce motion, activity reset, disabled modes, open menus, screen saver, foreground return, Home relaunch, held wake keys, and clicks/wheel events without accidental app/input launches. Candidate behavior is checked locally; no protection against physical panel wear is claimed measured or guaranteed.
 
 On an LG B4 with webOS 9.2.4, the 0.2.3 preview dimmed the interface and native Dolby Vision aerial together. One injected OK press restored the same menu/focus without triggering the Preview control again. The video pipeline remained playing. The full 30-minute wait has not been repeated on hardware.

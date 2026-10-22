@@ -7,7 +7,7 @@ function boot(cached,deniedStorage=false,preferences={}) {
   let now=0;
   let document;
   class Element {
-    constructor(tag='div'){this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.style={setProperty(){}};this.attributes={};this.className='';this.classList={contains:x=>this.className.split(' ').includes(x),toggle:(x,on)=>{const list=new Set(this.className.split(' ').filter(Boolean));if(on??!list.has(x))list.add(x);else list.delete(x);this.className=[...list].join(' ');},add:x=>this.classList.toggle(x,true),remove:x=>this.classList.toggle(x,false)};}
+    constructor(tag='div'){this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.style={setProperty(k,v){this[k]=v;}};this.attributes={};this.className='';this.classList={contains:x=>this.className.split(' ').includes(x),toggle:(x,on)=>{const list=new Set(this.className.split(' ').filter(Boolean));if(on??!list.has(x))list.add(x);else list.delete(x);this.className=[...list].join(' ');},add:x=>this.classList.toggle(x,true),remove:x=>this.classList.toggle(x,false)};}
     append(...items){this.children.push(...items);}
     replaceChildren(...items){this.children=items;}
     get firstElementChild(){return this.children[0];}
@@ -96,4 +96,34 @@ test('OLED overlay covers open menus and the saver, clears on foregrounding and 
   const s=boot({apps:[app],caps:null},false,{aerial:true});s.advance(3*60000);s.idleTick();assert.equal(s.document.body.classList.contains('saver'),true);
   s.advance(27*60000);s.idleTick();assert.equal(s.document.body.classList.contains('oled-dimmed'),true);
   s.key('ArrowDown');assert.equal(s.document.body.classList.contains('saver'),false);assert.equal(s.document.body.classList.contains('oled-dimmed'),false);assert.equal(s.nodes.get('input-row')?.hidden??true,true);
+});
+
+test('static protection shifts without resetting on activity; idle fade/hide consume wake input',()=>{
+  const b=boot({apps:[app],caps:null},false,{saverMinutes:0,oledDimming:false});
+  b.advance(60000);b.idleTick();assert.equal(b.document.documentElement.style['--oled-x'],'4px');
+  b.key('ArrowLeft');b.advance(2*60000);b.idleTick();assert.equal(b.document.body.classList.contains('oled-faded'),true);assert.equal(b.document.documentElement.style['--oled-y'],'4px');
+  const focus=b.document.activeElement;b.key('Enter');b.fire('keyup',{key:'Enter'});
+  assert.equal(b.document.activeElement,focus);assert.equal(b.calls.some(c=>c.startsWith('launch:')),false);assert.equal(b.document.body.classList.contains('oled-faded'),false);
+  b.advance(5*60000);b.idleTick();assert.equal(b.document.body.classList.contains('oled-resting'),true);
+  b.key('ArrowDown');b.fire('keyup',{key:'ArrowDown'});assert.equal(b.document.activeElement,focus);assert.equal(b.nodes.get('input-row')?.hidden??true,true);assert.equal(b.document.body.classList.contains('oled-resting'),false);
+  b.key('ArrowDown');assert.equal(b.nodes.get('input-row').hidden,false);
+  b.advance(2*60000);b.idleTick();assert.equal(b.fire('wheel').prevented,true);assert.equal(b.document.body.classList.contains('oled-faded'),false);
+});
+
+test('static care covers open panels, has persistent previews and can be disabled independently of 30-minute dimming',()=>{
+  const b=boot({apps:[app],caps:null});
+  const control=label=>b.nodes.get('panel').children.find(n=>n.tagName==='BUTTON'&&n.children.some(c=>c.textContent===label));
+  b.key('c');control('Settings').click();control('OLED care').click();
+  control('Preview hidden interface').click();b.idleTick();assert.equal(b.document.body.classList.contains('oled-resting'),true);
+  b.fire('pointermove');control('Preview idle fade').click();b.idleTick();assert.equal(b.document.body.classList.contains('oled-faded'),true);
+  b.fire('pointermove');control('Protect static elements').click();b.advance(5*60000);b.idleTick();
+  assert.equal(b.document.body.classList.contains('oled-resting'),false);assert.equal(b.document.body.classList.contains('oled-faded'),false);assert.equal(b.document.documentElement.style['--oled-x'],'0px');
+  b.advance(25*60000);b.idleTick();assert.equal(b.document.body.classList.contains('oled-dimmed'),true);
+});
+
+test('hidden app clears static protection and foreground return starts a fresh idle period',()=>{
+  const b=boot({apps:[app],caps:null});b.advance(5*60000);b.idleTick();assert.equal(b.document.body.classList.contains('oled-resting'),true);
+  assert.equal(b.nodes.get('toast')?.textContent,undefined);
+  b.document.hidden=true;b.documentEvent('visibilitychange');assert.equal(b.document.body.classList.contains('oled-resting'),false);assert.equal(b.document.documentElement.style['--oled-x'],'0px');
+  b.advance(10*60000);b.document.hidden=false;b.documentEvent('visibilitychange');b.idleTick();assert.equal(b.document.body.classList.contains('oled-resting'),false);assert.equal(b.document.body.classList.contains('oled-faded'),false);
 });

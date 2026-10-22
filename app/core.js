@@ -20,6 +20,7 @@
       usage: Object.fromEntries(Object.entries(x.usage && typeof x.usage==='object' ? x.usage : {}).filter(([k,v])=>/^[a-zA-Z0-9._-]+$/.test(k) && v && Number.isFinite(v.count) && v.count>0).slice(0,500).map(([k,v])=>[k,{count:Math.min(Math.floor(v.count),1000000),last:Number.isFinite(v.last)?v.last:0}])),
       saverMinutes: [0,1,3,5,10].includes(x.saverMinutes) ? x.saverMinutes : 3,
       oledDimming: typeof x.oledDimming==='boolean' ? x.oledDimming : true,
+      oledProtection: typeof x.oledProtection==='boolean' ? x.oledProtection : true,
       reduceMotion: !!x.reduceMotion,
       profile: typeof x.profile === 'string' ? x.profile.slice(0,32) || 'Home' : 'Home',
       order: Array.isArray(x.order) ? [...new Set(x.order.filter(v=>typeof v==='string'))] : [],
@@ -78,7 +79,13 @@
     if(index===previous)index=(index+1)%phrases[period].length;
     return {period,index,title:'Good '+(period==='night'?'evening':period)+'.',phrase:phrases[period][index]};
   }
-  const api={defaults,clean,visible,nextIndex,homeApps,starterFavorites,greeting};
+  function oledState(prefs,idleMs,elapsedMs,hidden=false) {
+    if(!prefs.oledProtection||hidden)return {x:0,y:0,rest:'active'};
+    const offsets=[[0,0],[4,0],[4,4],[0,4],[-4,4],[-4,0],[-4,-4],[0,-4],[4,-4]];
+    const [x,y]=prefs.reduceMotion?[0,0]:offsets[Math.floor(Math.max(0,elapsedMs)/60000)%offsets.length];
+    return {x,y,rest:idleMs>=5*60000?'hidden':idleMs>=2*60000?'faded':'active'};
+  }
+  const api={defaults,clean,visible,nextIndex,homeApps,starterFavorites,greeting,oledState};
   if(typeof module!=='undefined') module.exports=api;
   root.AerialCore=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -1,8 +1,23 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const {clean,visible,nextIndex}=require('../app/core.js');
-test('OLED dimming defaults on for existing preferences and accepts only saved booleans',()=>{
+const {clean,visible,nextIndex,oledState}=require('../app/core.js');
+test('OLED care defaults on for existing preferences and accepts only saved booleans',()=>{
   assert.equal(clean().oledDimming,true);assert.equal(clean({oledDimming:false}).oledDimming,false);assert.equal(clean({oledDimming:'false'}).oledDimming,true);
+  assert.equal(clean().oledProtection,true);assert.equal(clean({oledProtection:false}).oledProtection,false);assert.equal(clean({oledProtection:'false'}).oledProtection,true);
+});
+test('OLED shifts stay bounded, visit nine positions and respect off, visibility and Reduce motion',()=>{
+  const prefs=clean(),positions=Array.from({length:9},(_,i)=>oledState(prefs,0,i*60000));
+  assert.equal(new Set(positions.map(p=>p.x+','+p.y)).size,9);
+  for(const p of positions){assert.ok(Math.abs(p.x)<=4);assert.ok(Math.abs(p.y)<=4);}
+  assert.deepEqual(oledState(prefs,0,59999),positions[0]);assert.deepEqual(oledState(prefs,0,9*60000),positions[0]);
+  assert.deepEqual(oledState({...prefs,oledProtection:false},5*60000,60000),{x:0,y:0,rest:'active'});
+  assert.deepEqual(oledState(prefs,5*60000,60000,true),{x:0,y:0,rest:'active'});
+  assert.deepEqual(oledState({...prefs,reduceMotion:true},2*60000,60000),{x:0,y:0,rest:'faded'});
+});
+test('static UI fades at two minutes and disappears at five, independently of video and full dimming',()=>{
+  const prefs=clean({aerial:false,saverMinutes:0,oledDimming:false});
+  assert.equal(oledState(prefs,2*60000-1,0).rest,'active');assert.equal(oledState(prefs,2*60000,0).rest,'faded');
+  assert.equal(oledState(prefs,5*60000-1,0).rest,'faded');assert.equal(oledState(prefs,5*60000,0).rest,'hidden');
 });
 test('corrupt settings cannot break boot or inject folder records',()=>{
   const p=clean({columns:70,scene:-4,saverMinutes:0,order:['a','a',null],folders:[null,{id:'../../bad',title:'bad',apps:[]},{id:'folder-ok',title:'Films',apps:['a','a',null,'folder-other']}],profile:'x'.repeat(80)});
