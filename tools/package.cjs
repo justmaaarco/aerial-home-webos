@@ -2,6 +2,7 @@
 // Reproducible standard ar/tar IPK; no SDK, install scripts or dependencies.
 const fs=require('node:fs'),path=require('node:path'),zlib=require('node:zlib'),crypto=require('node:crypto');
 const root=path.resolve(__dirname,'..'),app=path.join(root,'app'),info=JSON.parse(fs.readFileSync(path.join(app,'appinfo.json')));
+function gzip(data){const buffer=zlib.gzipSync(data);buffer[9]=255;return buffer;} // RFC 1952: platform-neutral OS byte.
 function tar(files) {
   const out=[];
   for(const [name,data] of files) {
@@ -18,9 +19,9 @@ function tar(files) {
 function walk(dir,prefix='') { return fs.readdirSync(dir).sort().flatMap(name=>{const f=path.join(dir,name),p=prefix+name;return fs.statSync(f).isDirectory()?walk(f,p+'/'):[[p,fs.readFileSync(f)]];}); }
 function member(name,data){const header=(name+'/').padEnd(16)+'0'.padEnd(12)+'0'.padEnd(6)+'0'.padEnd(6)+'100644'.padEnd(8)+String(data.length).padEnd(10)+'`\n';return Buffer.concat([Buffer.from(header),data,data.length%2?Buffer.from('\n'):Buffer.alloc(0)]);}
 const prefix='./usr/palm/applications/'+info.id+'/';
-const data=zlib.gzipSync(tar(walk(app).map(([n,d])=>[prefix+n,d])));
+const data=gzip(tar(walk(app).map(([n,d])=>[prefix+n,d])));
 const control=Buffer.from('Package: '+info.id+'\nVersion: '+info.version+'\nSection: misc\nPriority: optional\nArchitecture: all\nMaintainer: Aerial Home contributors\nDescription: Independent glass-inspired webOS home screen\n');
-const archive=Buffer.concat([Buffer.from('!<arch>\n'),member('debian-binary',Buffer.from('2.0\n')),member('control.tar.gz',zlib.gzipSync(tar([['./control',control]]))),member('data.tar.gz',data)]);
+const archive=Buffer.concat([Buffer.from('!<arch>\n'),member('debian-binary',Buffer.from('2.0\n')),member('control.tar.gz',gzip(tar([['./control',control]]))),member('data.tar.gz',data)]);
 fs.mkdirSync(path.join(root,'dist'),{recursive:true});
 const filename=info.id+'_'+info.version+'_all.ipk';fs.writeFileSync(path.join(root,'dist',filename),archive);
 fs.writeFileSync(path.join(root,'dist',filename+'.sha256'),crypto.createHash('sha256').update(archive).digest('hex')+'  '+filename+'\n');

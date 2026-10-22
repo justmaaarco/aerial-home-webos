@@ -4,7 +4,7 @@ This alpha was developed on 22 October 2026. tvOS 26 is the selected visual refe
 
 ## Verified
 
-- Thirteen automated tests cover core behavior, input sanitization, adaptive app selection, greeting boundaries, shuffle cycles, capability-based Dolby selection, catalogue provenance and the helper's HTTP/file-access boundaries.
+- Fourteen automated tests cover core behavior, input sanitization, adaptive app selection, greeting boundaries, shuffle cycles, capability-based Dolby selection, catalogue provenance, the helper's HTTP/file-access boundaries and platform-neutral package compression headers.
 - Catalogue snapshot: 216 merged entries, 831 variants across eight official Apple manifests. Metadata probes found 114 reachable 4K Dolby Vision profile 5 URLs and 13 removed legacy HDR URLs. This does not mean every catalogue video was watched on every TV model.
 - Physical TV: native 4K Dolby Vision footage reached `play` with hardware VDEC and Dolby DM resources; the reviewed Bumpheads display capture had correct-looking colour.
 - Physical TV: newer Goa Beaches footage played from the Pi helper. ffprobe verified the prepared file retained 3840×2160, HEVC, 10-bit SDR and approximately 29.97 fps. The TV allocated hardware VDEC and displayed moving footage.
