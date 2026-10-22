@@ -1,6 +1,9 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {clean,visible,nextIndex}=require('../app/core.js');
+test('OLED dimming defaults on for existing preferences and accepts only saved booleans',()=>{
+  assert.equal(clean().oledDimming,true);assert.equal(clean({oledDimming:false}).oledDimming,false);assert.equal(clean({oledDimming:'false'}).oledDimming,true);
+});
 test('corrupt settings cannot break boot or inject folder records',()=>{
   const p=clean({columns:70,scene:-4,saverMinutes:0,order:['a','a',null],folders:[null,{id:'../../bad',title:'bad',apps:[]},{id:'folder-ok',title:'Films',apps:['a','a',null,'folder-other']}],profile:'x'.repeat(80)});
   assert.equal(p.columns,6);assert.equal(p.scene,2);assert.equal(p.saverMinutes,0);assert.deepEqual(p.order,['a']);assert.equal(p.profile.length,32);assert.deepEqual(p.folders,[{id:'folder-ok',title:'Films',apps:['a']}]);

@@ -19,6 +19,7 @@
       selectionImported: !!x.selectionImported,
       usage: Object.fromEntries(Object.entries(x.usage && typeof x.usage==='object' ? x.usage : {}).filter(([k,v])=>/^[a-zA-Z0-9._-]+$/.test(k) && v && Number.isFinite(v.count) && v.count>0).slice(0,500).map(([k,v])=>[k,{count:Math.min(Math.floor(v.count),1000000),last:Number.isFinite(v.last)?v.last:0}])),
       saverMinutes: [0,1,3,5,10].includes(x.saverMinutes) ? x.saverMinutes : 3,
+      oledDimming: typeof x.oledDimming==='boolean' ? x.oledDimming : true,
       reduceMotion: !!x.reduceMotion,
       profile: typeof x.profile === 'string' ? x.profile.slice(0,32) || 'Home' : 'Home',
       order: Array.isArray(x.order) ? [...new Set(x.order.filter(v=>typeof v==='string'))] : [],

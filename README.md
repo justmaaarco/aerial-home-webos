@@ -27,6 +27,7 @@ Public screenshots use original demo icons and an AI-generated scenic still, not
 - Reorder and hide apps, create/edit folders, search installed apps.
 - Translucent Control Center, TV volume/mute, native sleep timer, input selection.
 - Dark, light and time-based appearance, reduced motion and a local profile name.
+- Optional OLED dimming, enabled by default: a near-black overlay after 30 minutes without interaction, including menus and the screen saver. The first navigation/OK press wakes the launcher. See [OLED dimming](docs/oled-dimming.md).
 - Snapshot of all eight published Apple TV/Mac manifests: **216 entries, 831 source variants**, four categories, no-repeat shuffle and a paginated browser.
 - Highest compatible per-scene quality: **114 verified 4K Dolby Vision source URLs**, with 4K SDR fallback. Legacy HD-only clips are available separately and excluded from shuffle by default.
 - Optional [Pi media helper](docs/media-helper.md) makes newer 240 fps Mac aerials TV-compatible using lossless stream-copy retiming; no image re-encoding.

@@ -17,6 +17,7 @@
   function startupPaint(key){if(startup[key]===undefined)requestAnimationFrame(()=>requestAnimationFrame(()=>startupMark(key)));}
   let mediaReady=false,pendingSceneId=null,inputsLoading=false;
   let inputRowOpen=false,inputReturnFocus=null;
+  let oledDimmed=false,wakeKey=null,suppressWakeClick=false;
   if(cached?.caps)caps=cached.caps;
   function persistStartup(){if(TV.live)cache.save(apps,caps);}
   const scenes=APPLE_AERIALS.scenes,bag=new ShuffleBag(),sceneMap=new Map(scenes.map(s=>[s.id,s]));
@@ -195,14 +196,22 @@
     control(p,'App size','tv',prefs.columns===6?'Standard · 6 columns':'Large · 5 columns',()=>{prefs.columns=prefs.columns===6?5:6;save();render(null,false);settings();});
     control(p,'Reduce motion','controls',prefs.reduceMotion?'On':'Off',()=>{prefs.reduceMotion=!prefs.reduceMotion;save();settings();});
     control(p,'Aerials & screen saver','picture','4K HEVC',aerialSettings);
+    control(p,'OLED dimming','moon',prefs.oledDimming?'After 30 minutes idle':'Off',oledSettings);
     section(p,'HOME SCREEN');
     control(p,'Apps on Home','apps',{'most-used':'Most used','favorites':'Favourites','all':'All apps'}[prefs.homeMode],homeSelection);
     control(p,'New folder','folder','',createFolder);
     control(p,'Hidden apps','tv',String(prefs.hidden.length),hiddenApps);
     control(p,'Profile name','person',prefs.profile,profile);
     control(p,'LG TV settings','settings','',()=>TV.live?TV.launch('com.palm.app.settings'):toast('Preview: opens LG TV settings'));
-    section(p,'ABOUT');note(p,'Aerial Home 0.2.2 · Independent open-source launcher. Built for webOS. Not affiliated with Apple or LG.');
+    section(p,'ABOUT');note(p,'Aerial Home 0.2.3 · Independent open-source launcher. Built for webOS. Not affiliated with Apple or LG.');
     note(p,TV.live?'Connected to LG webOS. Homebrew Channel supplies app discovery and local artwork.':'Browser preview — sample tiles are original placeholder artwork. Real installed apps appear on the TV.');
+  }
+  function oledSettings() {
+    const p=panel('OLED dimming','oled');
+    control(p,'Dim after 30 minutes idle','moon',prefs.oledDimming?'On':'Off',()=>{prefs.oledDimming=!prefs.oledDimming;save();oledSettings();});
+    control(p,'Preview dimming','moon','Wake with the remote',()=>setOledDimmed(true));
+    note(p,'A near-black overlay dims the whole launcher, including menus and the screen saver. Press a remote button or move the pointer to wake it. The first press only wakes the screen.');
+    note(p,'Applies while Aerial Home is on screen. Keep LG’s built-in OLED care enabled; dimming reduces light output but cannot guarantee protection against burn-in.');
   }
   function aerialSettings() {
     const p=panel('Aerials','aerials');
@@ -368,23 +377,38 @@
     // Prepare at most one likely upcoming Mac clip; keep actual playback native when possible.
     if(prefs.mediaServer){const next=bag.bag.slice(0,3).map(id=>sceneMap.get(id)).find(s=>choices(s)[0]?.fps>60);if(next)helperJSON('/api/prepare/'+encodeURIComponent(next.id)).catch(()=>{});}
   };
-  document.addEventListener('visibilitychange',()=>{if(document.hidden){videoSuspended=true;stopVideo();}else{lastActivity=Date.now();if(homeDirty)render(focusId,false);if(videoSuspended){videoSuspended=false;playScene();}clock(true);}});
-  addEventListener('blur',()=>{clearTimeout(holdTimer);heldKey=null;longPress=false;});
+  document.addEventListener('visibilitychange',()=>{setOledDimmed(false);wakeKey=null;suppressWakeClick=false;lastActivity=Date.now();if(document.hidden){videoSuspended=true;stopVideo();}else{if(homeDirty)render(focusId,false);if(videoSuspended){videoSuspended=false;playScene();}clock(true);}});
+  addEventListener('blur',()=>{clearTimeout(holdTimer);heldKey=null;longPress=false;wakeKey=null;suppressWakeClick=false;});
   addEventListener('pagehide',stopVideo);
   function startSaver() { if(!prefs.aerial){toast('Enable video background in Aerials first');return;}saver=true;document.body.classList.add('saver');$('saver-caption').hidden=false;$('home').setAttribute('inert','');$('toolbar').setAttribute('inert','');document.activeElement?.blur(); }
+  function setOledDimmed(dimmed) {
+    oledDimmed=dimmed;document.body.classList.toggle('oled-dimmed',dimmed);
+    if(dimmed){clearTimeout(holdTimer);heldKey=null;longPress=false;}
+  }
   function activity() {
     lastActivity=Date.now();
+    const wasDimmed=oledDimmed;
+    if(oledDimmed)setOledDimmed(false);
     if(saver){saver=false;document.body.classList.remove('saver');$('saver-caption').hidden=true;$('home').removeAttribute('inert');$('toolbar').removeAttribute('inert');render();return true;}
-    return false;
+    return wasDimmed;
   }
-  addEventListener('pointermove',()=>activity());addEventListener('pointerdown',e=>{if(activity()){e.preventDefault();e.stopImmediatePropagation();}},true);
-  setInterval(()=>{if(!document.hidden&&!panelKind&&!saver&&prefs.saverMinutes&&Date.now()-lastActivity>prefs.saverMinutes*60000)startSaver();},5000);
+  addEventListener('pointermove',()=>activity());
+  addEventListener('pointerdown',e=>{suppressWakeClick=activity();if(suppressWakeClick){e.preventDefault();e.stopImmediatePropagation();}},true);
+  addEventListener('click',e=>{if(suppressWakeClick||activity()){suppressWakeClick=false;e.preventDefault();e.stopImmediatePropagation();}},true);
+  setInterval(()=>{
+    if(document.hidden)return;
+    const idle=Date.now()-lastActivity;
+    if(prefs.oledDimming&&!oledDimmed&&idle>=30*60000)setOledDimmed(true);
+    if(!oledDimmed&&!panelKind&&!saver&&prefs.saverMinutes&&idle>=prefs.saverMinutes*60000)startSaver();
+  },5000);
   let heldKey=null,holdTimer,longPress=false,moveOriginal=null;
   addEventListener('keyup',e=>{
+    if(wakeKey===(e.code||e.key)){wakeKey=null;e.preventDefault();e.stopImmediatePropagation();return;}
     if(e.key==='Enter' && heldKey==='Enter'){clearTimeout(holdTimer);heldKey=null;if(!longPress){e.preventDefault();document.activeElement?.click();}longPress=false;}
   },true);
   addEventListener('keydown',e=>{
-    if(activity()){e.preventDefault();return;}
+    if(wakeKey===(e.code||e.key)){lastActivity=Date.now();e.preventDefault();e.stopImmediatePropagation();return;}
+    if(activity()){wakeKey=e.code||e.key;e.preventDefault();e.stopImmediatePropagation();return;}
     const back=e.key==='Escape'||e.keyCode===461||e.key==='Backspace'&&!/INPUT/.test(document.activeElement?.tagName);
     if(back) {e.preventDefault();if(moving){moving=null;if(moveOriginal){prefs.order=moveOriginal;save();moveOriginal=null;}render();$('hint').textContent='↓ Inputs · ↑ Control Center';}else if(panelKind)closePanel();else if(inputRowOpen)hideInputRow();else controls();return;}
     if(e.key==='Enter' && !/INPUT/.test(document.activeElement?.tagName)) {
@@ -469,6 +493,7 @@
   }
   function routeLaunch(event) {
     try {
+      if(event)activity();
       const params=event?.detail || JSON.parse(window.PalmSystem?.launchParams || '{}');
       if(event&&!params.screen){if(panelKind)closePanel();hideInputRow();}
       if(params.mediaServer!==undefined){prefs.mediaServer=clean({...prefs,mediaServer:params.mediaServer}).mediaServer;failedScenes.clear();save();}

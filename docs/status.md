@@ -1,10 +1,12 @@
-# Version 0.2.2 validation and scope
+# Version 0.2.3 validation and scope
 
 This alpha was developed on 22 October 2026. tvOS 26 is the selected visual reference, not a promise of feature or pixel identity.
 
 ## Verified
 
-- Twenty-three automated tests cover core behavior, input sanitization, adaptive app selection, greeting boundaries, shuffle cycles, capability-based Dolby selection, catalogue provenance, the helper's HTTP/file-access boundaries, platform-neutral package compression headers, optional cache failures, independent startup tasks and input-row navigation. Input focus does not launch a device; OK does.
+- Twenty-seven automated tests cover core behavior, input sanitization, adaptive app selection, greeting boundaries, shuffle cycles, capability-based Dolby selection, catalogue provenance, the helper's HTTP/file-access boundaries, platform-neutral package compression headers, optional cache failures, independent startup tasks, input-row navigation and OLED idle/wake behavior. Input focus does not launch a device; OK does.
+- OLED dimming: clock-driven tests verify the 30-minute deadline, activity reset, off setting, menu/saver coverage, background/foreground handling, Home relaunch and consumed wake keys/clicks. Browser preview verified a 97% black overlay and first-OK wake without reactivating the focused control. See [behavior and limits](oled-dimming.md).
+- Physical LG B4: installed 0.2.3, opened OLED dimming through remote navigation, verified the preview darkened both the interface and native Dolby Vision aerial, then sent one OK press. The same menu and focused Preview control returned without reactivating dimming, and the aerial remained in `play`. The automatic 30-minute boundary was tested with a simulated clock rather than a 30-minute on-TV wait.
 - Startup tests verify that cached Home is focusable before service calls, a fresh inventory renders while capabilities/HDMI remain pending, unchanged tiles survive refresh, and failed discovery leaves cached Home usable. On-TV measurements are described in [startup performance](startup.md).
 - Catalogue snapshot: 216 merged entries, 831 variants across eight official Apple manifests. Metadata probes found 114 reachable 4K Dolby Vision profile 5 URLs and 13 removed legacy HDR URLs. This does not mean every catalogue video was watched on every TV model.
 - Physical TV: native 4K Dolby Vision footage reached `play` with hardware VDEC and Dolby DM resources; the reviewed Bumpheads display capture had correct-looking colour.
