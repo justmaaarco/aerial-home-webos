@@ -2,7 +2,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const core=require('../app/core.js'),media=require('../app/media.js');
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
-function boot(cached,deniedStorage=false,preferences={}) {
+function boot(cached,deniedStorage=false,preferences={},sceneList=[]) {
   const nodes=new Map(),frames=[],timers=[],intervals=[],calls=[],events={},documentEvents={};
   let now=0;
   let document;
@@ -14,6 +14,8 @@ function boot(cached,deniedStorage=false,preferences={}) {
     setAttribute(k,v){this.attributes[k]=v;}
     removeAttribute(k){delete this.attributes[k];}
     getAttribute(k){return this.attributes[k]??null;}
+    set src(value){this.attributes.src=value;}
+    get src(){return this.attributes.src||'';}
     focus(){document.activeElement=this;this.onfocus?.();}
     blur(){if(document.activeElement===this)document.activeElement=null;}
     querySelectorAll(){return [];}
@@ -23,17 +25,19 @@ function boot(cached,deniedStorage=false,preferences={}) {
     click(){this.onclick?.();}
     pause(){}
     load(){}
+    play(){calls.push('video:play');return Promise.resolve();}
   }
   document={body:new Element('body'),documentElement:new Element('html'),activeElement:null,hidden:false,createElement:tag=>new Element(tag),getElementById:id=>{if(!nodes.has(id))nodes.set(id,new Element());return nodes.get(id);},addEventListener(name,fn){(documentEvents[name]||=[]).push(fn);},querySelectorAll(){return [];}};
   const inventory=deferred(),capabilities=deferred(),inputs=deferred();
-  const context={document,localStorage:{getItem:()=>JSON.stringify({selectionImported:true,aerial:false,...preferences}),setItem(){}},Date:class extends Date{static now(){return now;}},innerWidth:1920,innerHeight:1080,addEventListener(name,fn){(events[name]||=[]).push(fn);},setInterval(fn,ms){intervals.push({fn,ms});},clearTimeout(){},setTimeout:fn=>{timers.push(fn);},requestAnimationFrame:fn=>{frames.push(fn);},performance:{now:()=>0},queueMicrotask,console,
-    AerialCore:core,AerialMedia:media,APPLE_AERIALS:{scenes:[]},AerialCache:{create:()=>({read:()=>cached,save(){},icon:async()=>null}),iconKey:()=>''},
+  const context={document,localStorage:{getItem:()=>JSON.stringify({selectionImported:true,aerial:false,...preferences}),setItem(){}},Date:class extends Date{static now(){return now;}},innerWidth:1920,innerHeight:1080,addEventListener(name,fn){(events[name]||=[]).push(fn);},setInterval(fn,ms){intervals.push({fn,ms});},clearTimeout(timer){if(timer)timer.cancelled=true;},setTimeout(fn,ms=0){const timer=()=>{if(!timer.cancelled){timer.cancelled=true;fn();}};timer.due=now+ms;timers.push(timer);return timer;},requestAnimationFrame:fn=>{frames.push(fn);},performance:{now:()=>now},queueMicrotask,console,
+    AerialCore:core,AerialMedia:media,APPLE_AERIALS:{scenes:sceneList},AerialCache:{create:()=>({read:()=>cached,save(){},icon:async()=>null}),iconKey:()=>''},
     TV:{live:true,call:async()=>({volume:20}),listApps:()=>{calls.push('apps');return inventory.promise;},capabilities:()=>{calls.push('caps');return capabilities.promise;},listInputs:()=>{calls.push('inputs');return inputs.promise;},lumaFavorites:async()=>[],launch:async id=>{calls.push('launch:'+id);}}};
   if(deniedStorage)for(const key of ['localStorage','indexedDB'])Object.defineProperty(context,key,{get(){throw Error('Storage denied');}});
   context.window=context;vm.runInNewContext(fs.readFileSync(require.resolve('../app/app.js'),'utf8'),context);
   const fire=(name,detail={},source=events)=>{const e={keyCode:0,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...detail};for(const fn of source[name]||[]){fn(e);if(e.stopped)break;}return e;};
   const key=value=>fire('keydown',{key:value});
-  return {nodes,frames,timers,calls,inventory,capabilities,inputs,context,document,key,fire,documentEvent:(name,detail)=>fire(name,detail,documentEvents),advance:ms=>{now+=ms;},idleTick:()=>intervals.find(i=>i.ms===5000).fn()};
+  const runTimers=async()=>{for(let i=0;i<100;i++){const next=timers.filter(t=>!t.cancelled&&t.due<=now).sort((a,b)=>a.due-b.due)[0];if(!next)return;next();await new Promise(setImmediate);}throw Error('Timer loop did not settle');};
+  return {nodes,frames,timers,calls,inventory,capabilities,inputs,context,document,key,fire,documentEvent:(name,detail)=>fire(name,detail,documentEvents),advance:ms=>{now+=ms;},idleTick:()=>intervals.find(i=>i.ms===5000).fn(),paint:()=>{while(frames.length)frames.shift()();},runTimers};
 }
 const app={id:'netflix',title:'Netflix',glyph:'play'};
 test('cached Home is focusable before service requests; refresh preserves the existing tiles',async()=>{
@@ -126,4 +130,49 @@ test('hidden app clears static protection and foreground return starts a fresh i
   assert.equal(b.nodes.get('toast')?.textContent,undefined);
   b.document.hidden=true;b.documentEvent('visibilitychange');assert.equal(b.document.body.classList.contains('oled-resting'),false);assert.equal(b.document.documentElement.style['--oled-x'],'0px');
   b.advance(10*60000);b.document.hidden=false;b.documentEvent('visibilitychange');b.idleTick();assert.equal(b.document.body.classList.contains('oled-resting'),false);assert.equal(b.document.body.classList.contains('oled-faded'),false);
+});
+
+const scene={id:'test-aerial',title:'Test aerial',category:'Landscapes',variants:[{url:'https://example.org/aerial-4k.mov',height:2160,fps:29.97,range:'SDR'}]};
+const settle=()=>new Promise(setImmediate);
+async function readyAerial(preferences={}) {
+  const b=boot({apps:[app],caps:null},false,{aerial:true,saverMinutes:0,...preferences},[scene]);
+  b.paint();await b.runTimers();b.capabilities.resolve({dolbyVision:false,hdr10:false,uhd:true});await settle();return b;
+}
+test('first aerial waits for usable Home frames and the configured entry delay before allocating video',async()=>{
+  const b=boot(null,false,{aerial:true,saverMinutes:0},[scene]);
+  b.capabilities.resolve({dolbyVision:false,hdr10:false,uhd:true});await settle();b.advance(5000);await b.runTimers();assert.equal(b.nodes.get('aerial').src,'');
+  b.inventory.resolve([{...app}]);await settle();assert.equal(b.document.activeElement.dataset.id,'netflix');
+  b.paint();b.advance(2999);await b.runTimers();assert.equal(b.nodes.get('aerial').src,'');
+  b.advance(1);await b.runTimers();assert.equal(b.nodes.get('aerial').src,scene.variants[0].url);assert.equal(b.calls.filter(c=>c==='video:play').length,1);
+  assert.equal(b.context.AerialStartup.videoGateReleasedMs,8000);
+  const empty=await readyAerial({hidden:['netflix']});assert.equal(empty.nodes.get('grid').children.length,0);
+  empty.advance(3000);await empty.runTimers();assert.equal(empty.calls.filter(c=>c==='video:play').length,1);
+});
+test('navigation postpones initial video until 1.2 seconds quiet, without rebuilding tiles',async()=>{
+  const b=await readyAerial(),tile=b.nodes.get('grid').firstElementChild;
+  b.advance(2900);b.key('ArrowLeft');b.advance(100);await b.runTimers();assert.equal(b.nodes.get('aerial').src,'');
+  b.advance(1099);await b.runTimers();assert.equal(b.nodes.get('aerial').src,'');
+  b.advance(1);await b.runTimers();assert.equal(b.calls.filter(c=>c==='video:play').length,1);assert.equal(b.nodes.get('grid').firstElementChild,tile);
+});
+test('opening a menu postpones pending video, but menus do not pause an aerial already playing',async()=>{
+  const b=await readyAerial();b.key('c');b.advance(3000);await b.runTimers();assert.equal(b.nodes.get('aerial').src,'');
+  b.key('Escape');b.advance(1200);await b.runTimers();assert.equal(b.calls.filter(c=>c==='video:play').length,1);
+  b.key('c');assert.equal(b.nodes.get('aerial').src,scene.variants[0].url);assert.equal(b.calls.filter(c=>c==='video:play').length,1);
+});
+test('leaving Home cancels delayed playback and returning grants a fresh entry window',async()=>{
+  const b=await readyAerial();b.advance(2000);b.document.hidden=true;b.documentEvent('visibilitychange');b.advance(10000);await b.runTimers();assert.equal(b.calls.includes('video:play'),false);
+  b.document.hidden=false;b.documentEvent('visibilitychange');b.paint();b.advance(2999);await b.runTimers();assert.equal(b.calls.includes('video:play'),false);
+  b.advance(1);await b.runTimers();assert.equal(b.calls.filter(c=>c==='video:play').length,1);
+  b.document.hidden=true;b.documentEvent('visibilitychange');assert.equal(b.nodes.get('aerial').src,'');
+  b.document.hidden=false;b.documentEvent('visibilitychange');b.paint();b.advance(3000);await b.runTimers();assert.equal(b.calls.filter(c=>c==='video:play').length,2);
+});
+test('explicit aerial selection and subsequent clips bypass entry delay; zero delay remains available',async()=>{
+  const b=await readyAerial();b.documentEvent('webOSRelaunch',{detail:{sceneId:scene.id}});await settle();assert.equal(b.calls.filter(c=>c==='video:play').length,1);
+  b.advance(3000);await b.runTimers();assert.equal(b.calls.filter(c=>c==='video:play').length,1);
+  b.nodes.get('aerial').onended();await settle();assert.equal(b.calls.filter(c=>c==='video:play').length,2);
+  const immediate=await readyAerial({aerialDelay:0});assert.equal(immediate.calls.filter(c=>c==='video:play').length,1);
+  const early=boot({apps:[app],caps:null},false,{aerial:true,saverMinutes:0},[scene]);early.paint();await early.runTimers();
+  const control=label=>early.nodes.get('panel').children.find(n=>n.tagName==='BUTTON'&&n.children.some(c=>c.textContent===label));
+  early.key('c');control('Aerials').click();control('Next aerial').click();await settle();assert.equal(early.calls.filter(c=>c==='video:play').length,1);
+  early.capabilities.resolve({dolbyVision:false,hdr10:false,uhd:true});await settle();early.advance(5000);await early.runTimers();assert.equal(early.calls.filter(c=>c==='video:play').length,1);
 });

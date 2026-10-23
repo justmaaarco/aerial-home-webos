@@ -1,6 +1,10 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {clean,visible,nextIndex,oledState}=require('../app/core.js');
+test('aerial entry delay defaults to three seconds and preserves only supported timings',()=>{
+  assert.equal(clean().aerialDelay,3);for(const value of [0,3,5,10])assert.equal(clean({aerialDelay:value}).aerialDelay,value);
+  for(const value of [-1,2,NaN,'5',null])assert.equal(clean({aerialDelay:value}).aerialDelay,3);
+});
 test('OLED care defaults on for existing preferences and accepts only saved booleans',()=>{
   assert.equal(clean().oledDimming,true);assert.equal(clean({oledDimming:false}).oledDimming,false);assert.equal(clean({oledDimming:'false'}).oledDimming,true);
   assert.equal(clean().oledProtection,true);assert.equal(clean({oledProtection:false}).oledProtection,false);assert.equal(clean({oledProtection:'false'}).oledProtection,true);

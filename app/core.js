@@ -7,6 +7,7 @@
       appearance: ['dark','light','auto'].includes(x.appearance) ? x.appearance : defaults.appearance,
       columns: x.columns === 5 ? 5 : 6,
       aerial: typeof x.aerial === 'boolean' ? x.aerial : true,
+      aerialDelay: [0,3,5,10].includes(x.aerialDelay) ? x.aerialDelay : 3,
       scene: Number.isInteger(x.scene) && x.scene >= 0 && x.scene < 3 ? x.scene : 2,
       sceneId: typeof x.sceneId==='string' ? x.sceneId.slice(0,100) : '',
       shuffle: typeof x.shuffle==='boolean' ? x.shuffle : true,

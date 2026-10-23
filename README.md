@@ -34,6 +34,7 @@ Public screenshots use original demo icons and an AI-generated scenic still, not
 - Artwork updates replace only the affected image; menu OK actions respond on press. Moving aerials continue behind menus. Menu latency on the tested TV remains under investigation.
 - Bounded service timeouts, validated artwork paths, no telemetry and no cloud account.
 - Cached Home renders before TV discovery on repeat launches. Local artwork is reused from a bounded IndexedDB cache; HDMI and HDR discovery no longer block Home. See [startup behavior and measurements](docs/startup.md).
+- Home gets a configurable three-second head start before the first aerial starts, including on return from another app. Navigation and open menus postpone pending playback; an already-playing aerial continues behind menus. This candidate change has not yet been benchmarked on hardware.
 
 Apple Account, Siri, FaceTime, HomeKit, AirPlay routing, Apple Music Sing and tvOS App Store apps are not implemented. A profile name does not switch streaming-service accounts. Search searches installed apps, not streaming catalogues. There is no fabricated Top Shelf/watch history integration. See [scope and validation](docs/status.md).
 

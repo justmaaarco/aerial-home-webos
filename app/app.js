@@ -14,8 +14,9 @@
   const cache=AerialCache.create(startupStorage,artworkDatabase),cached=TV.live?cache.read():null;
   const startup=window.AerialStartup={scriptMs:Math.round(performance.now()),cachedHome:!!cached?.apps.length};
   function startupMark(key){if(startup[key]===undefined)startup[key]=Math.round(performance.now());}
-  function startupPaint(key){if(startup[key]===undefined)requestAnimationFrame(()=>requestAnimationFrame(()=>startupMark(key)));}
+  function startupPaint(key,onPaint){if(startup[key]===undefined||onPaint)requestAnimationFrame(()=>requestAnimationFrame(()=>{startupMark(key);onPaint?.();}));}
   let mediaReady=false,pendingSceneId=null,inputsLoading=false;
+  let homeReadyAt=null,homeVisit=0,homeRendered=false,aerialStartTimer=null,aerialStartPending=false,aerialStartScene=null;
   let inputRowOpen=false,inputReturnFocus=null;
   let oledDimmed=false,wakeKey=null,suppressWakeClick=false;
   const oledEpoch=Date.now();
@@ -95,7 +96,7 @@
     const wasGrid=document.activeElement?.classList.contains('app') && !panelKind;
     shown=homeApps(apps,prefs).filter(a=>!a.input);homeDirty=false;
     const grid=$('grid');grid.replaceChildren(...shown.map(tile));
-    if(shown.length){startupMark('homeDomMs');startupPaint('homePaintMs');}
+    homeRendered=true;startupMark('homeDomMs');paintHome();
     $('empty').hidden=shown.length>0;
     if(moving) Array.from(grid.children).find(b=>b.dataset.id===moving)?.classList.add('moving');
     if(focus || wasGrid) (Array.from(grid.children).find(b=>b.dataset.id===id) || grid.firstElementChild)?.focus({preventScroll:true});
@@ -140,6 +141,7 @@
     $('panel').hidden=true;panelKind=null;document.body.classList.remove('panel-open');
     $('home').removeAttribute('inert');$('toolbar').removeAttribute('inert');
     if(homeDirty)render(returnFocus);else(Array.from($('grid').children).find(b=>b.dataset.id===returnFocus)||$('grid').firstElementChild||$('apps-button')).focus({preventScroll:true});
+    scheduleAerialStart();
   }
   function section(p,text) { p.append(el('div','panel-section',text)); }
   function note(p,text) { p.append(el('p','panel-note',text)); }
@@ -223,6 +225,7 @@
   function aerialSettings() {
     const p=panel('Aerials','aerials');
     control(p,'Video background','picture',prefs.aerial?'On':'Off',()=>{prefs.aerial=!prefs.aerial;save();if(prefs.aerial)playScene();else stopVideo();aerialSettings();});
+    control(p,'Start delay','moon',prefs.aerialDelay?prefs.aerialDelay+' seconds · Home first':'Off',()=>{const choices=[0,3,5,10];prefs.aerialDelay=choices[(choices.indexOf(prefs.aerialDelay)+1)%choices.length];save();scheduleAerialStart();aerialSettings();});
     control(p,'Shuffle','controls',prefs.shuffle?'On · no repeats':'Off · in order',()=>{prefs.shuffle=!prefs.shuffle;save();aerialSettings();});
     control(p,'Next aerial','picture',currentScene?.title || '',()=>playScene(null,true));
     control(p,'Quality','tv',{'auto':'Maximum compatible','dolby':'Prefer Dolby Vision','hdr':'Prefer HDR10 / HLG','sdr':'4K SDR'}[prefs.quality],qualitySettings);
@@ -317,7 +320,25 @@
     else if(prefs.folders.length) prefs.folders.forEach(f=>control(p,'Add to '+f.title,'folder','',()=>{prefs.folders.forEach(o=>o.apps=o.apps.filter(id=>id!==a.id));f.apps.push(a.id);save();closePanel();}));
   }
   const video=$('aerial');
-  function stopVideo() {playGeneration++;playRequest=false;preparingTitle='';clearTimeout(startTimer);video.loop=false;video.pause();video.removeAttribute('src');video.load();}
+  function paintHome() {
+    if(homeReadyAt!==null||!homeRendered)return;
+    const visit=homeVisit;
+    startupPaint('homePaintMs',()=>{if(visit!==homeVisit||document.hidden)return;homeReadyAt??=Date.now();scheduleAerialStart();});
+  }
+  function cancelAerialStart() {clearTimeout(aerialStartTimer);aerialStartTimer=null;aerialStartPending=false;}
+  function requestAerialStart(id=null) {
+    cancelAerialStart();if(!prefs.aerial||document.hidden)return;
+    aerialStartPending=true;aerialStartScene=id;startupMark('videoQueuedMs');scheduleAerialStart();
+  }
+  function scheduleAerialStart() {
+    clearTimeout(aerialStartTimer);aerialStartTimer=null;
+    if(!aerialStartPending||!mediaReady||!prefs.aerial||document.hidden||homeReadyAt===null||panelKind)return;
+    const now=Date.now(),quiet=prefs.aerialDelay?1200:0;
+    const wait=Math.max(homeReadyAt+prefs.aerialDelay*1000,lastActivity+quiet)-now;
+    if(wait>0){aerialStartTimer=setTimeout(scheduleAerialStart,wait);return;}
+    const id=aerialStartScene;cancelAerialStart();startupMark('videoGateReleasedMs');playScene(id);
+  }
+  function stopVideo() {cancelAerialStart();playGeneration++;playRequest=false;preparingTitle='';clearTimeout(startTimer);video.loop=false;video.pause();video.removeAttribute('src');video.load();}
   function choices(scene) {return mediaVariants(scene,prefs.quality,caps,prefs.mediaServer).filter(v=>!failedVariants.has(v.url));}
   function pool() {return scenes.filter(s=>prefs.categories.includes(s.category)&&!failedScenes.has(s.id)&&choices(s).some(v=>prefs.legacyHD||v.height>=2160));}
   async function helperJSON(path) {
@@ -340,6 +361,8 @@
     throw new Error(generation!==playGeneration?'Cancelled':'Aerial preparation timed out');
   }
   async function playScene(id=null,next=false) {
+    // An explicit scene choice (or the next clip) need not wait for Home's entry delay.
+    cancelAerialStart();
     if(!prefs.aerial||document.hidden){stopVideo();return;}
     const eligible=pool();let scene=id?sceneMap.get(id):currentScene;
     if(!scene||next){
@@ -384,7 +407,7 @@
     // Prepare at most one likely upcoming Mac clip; keep actual playback native when possible.
     if(prefs.mediaServer){const next=bag.bag.slice(0,3).map(id=>sceneMap.get(id)).find(s=>choices(s)[0]?.fps>60);if(next)helperJSON('/api/prepare/'+encodeURIComponent(next.id)).catch(()=>{});}
   };
-  document.addEventListener('visibilitychange',()=>{setOledDimmed(false);oledPreview=null;wakeKey=null;suppressWakeClick=false;lastActivity=Date.now();syncOledProtection();if(document.hidden){videoSuspended=true;stopVideo();}else{if(homeDirty)render(focusId,false);if(videoSuspended){videoSuspended=false;playScene();}clock(true);}});
+  document.addEventListener('visibilitychange',()=>{setOledDimmed(false);oledPreview=null;wakeKey=null;suppressWakeClick=false;lastActivity=Date.now();homeVisit++;homeReadyAt=null;syncOledProtection();if(document.hidden){videoSuspended=true;stopVideo();}else{if(homeDirty)render(focusId,false);paintHome();if(videoSuspended){videoSuspended=false;requestAerialStart(currentScene?.id || null);}clock(true);}});
   addEventListener('blur',()=>{clearTimeout(holdTimer);heldKey=null;longPress=false;wakeKey=null;suppressWakeClick=false;});
   addEventListener('pagehide',stopVideo);
   function startSaver() { if(!prefs.aerial){toast('Enable video background in Aerials first');return;}saver=true;document.body.classList.add('saver');$('saver-caption').hidden=false;$('home').setAttribute('inert','');$('toolbar').setAttribute('inert','');document.activeElement?.blur(); }
@@ -531,7 +554,7 @@
     refreshInventory();
     // Capabilities can gate format selection, but never gate Home rendering.
     TV.capabilities().then(device=>{caps=device;startupMark('capabilitiesMs');persistStartup();}).catch(()=>{}).finally(()=>{
-      mediaReady=true;playScene(pendingSceneId || (prefs.shuffle?null:prefs.sceneId || null));
+      mediaReady=true;if(!video.getAttribute('src')&&!playRequest)requestAerialStart(pendingSceneId || (prefs.shuffle?null:prefs.sceneId || null));
     });
     if(!prefs.selectionImported)TV.lumaFavorites().then(favorites=>{
       if(favorites.length)prefs.favorites=favorites;
