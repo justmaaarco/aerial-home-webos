@@ -1,8 +1,8 @@
 # OLED care
 
-The static-element additions in 0.2.4 are a local candidate, not yet deployed or validated on a physical TV. Version 0.2.3 retains its original 30-minute dimming option under **Settings → OLED dimming**.
+The static-element additions in 0.2.4 are installed on the development TV but not yet publicly released. Physical-TV previews verified fade, hide, dim and wake behavior. Version 0.2.3 retains its original 30-minute dimming option under **Settings → OLED dimming**.
 
-In the candidate, open **Settings → OLED care**. **Protect static elements** and **Dim after 30 minutes idle** are independent switches, both on by default. Each idle state has a preview that lasts until interaction.
+In 0.2.4, open **Settings → OLED care**. **Protect static elements** and **Dim after 30 minutes idle** are independent switches, both on by default. Each idle state has a preview that lasts until interaction.
 
 ## Static elements
 
@@ -20,6 +20,6 @@ The timer resets when the app returns to the foreground or receives a Home relau
 
 ## Validation
 
-Automated clock-driven tests cover the 2-, 5- and 30-minute boundaries, bounded pixel-shift cycles, Reduce motion, activity reset, disabled modes, open menus, screen saver, foreground return, Home relaunch, held wake keys, and clicks/wheel events without accidental app/input launches. Candidate behavior is checked locally; no protection against physical panel wear is claimed measured or guaranteed.
+Automated clock-driven tests cover the 2-, 5- and 30-minute boundaries, bounded pixel-shift cycles, Reduce motion, activity reset, disabled modes, open menus, screen saver, foreground return, Home relaunch, held wake keys, and clicks/wheel events without accidental app/input launches. No protection against physical panel wear is claimed measured or guaranteed.
 
-On an LG B4 with webOS 9.2.4, the 0.2.3 preview dimmed the interface and native Dolby Vision aerial together. One injected OK press restored the same menu/focus without triggering the Preview control again. The video pipeline remained playing. The full 30-minute wait has not been repeated on hardware.
+On an LG B4 with webOS 9.2.4, the 0.2.4 previews visibly faded the whole UI, hid it completely while retaining the aerial, and dimmed both UI and native Dolby Vision video. One injected OK press restored the same menu/focus without triggering the Preview control again. The video pipeline remained playing. Pixel-shift cycles and the full 2-, 5- and 30-minute automatic waits have not been repeated on hardware; local browser inspection and clock-driven tests cover those paths.

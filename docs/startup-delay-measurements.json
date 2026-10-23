@@ -1,0 +1,278 @@
+{
+  "version": "0.2.4",
+  "device": "LG B4 / webOS 9.2.4",
+  "method": "Fresh app processes, populated caches, fixed Iceland Snow Caps aerial. Four injected direction events per run; timing from event-handler entry until second animation-frame callback. Software scheduling proxy, not input-to-photon.",
+  "limitations": "Three runs per setting on one TV and clip. No sustained playback or cold TV wake latency claim. Benchmark removed and original installed source verified afterward.",
+  "samples": [
+    {
+      "delaySeconds": 0,
+      "keys": [
+        {
+          "atMs": 1645,
+          "twoFramesMs": 19
+        },
+        {
+          "atMs": 1858,
+          "twoFramesMs": 184.1
+        },
+        {
+          "atMs": 2465,
+          "twoFramesMs": 72.8
+        },
+        {
+          "atMs": 2880,
+          "twoFramesMs": 381.4
+        }
+      ],
+      "gridDomMs": 689,
+      "gridFrameMs": 1027,
+      "videoPlayingMs": 1976,
+      "startup": {
+        "scriptMs": 452,
+        "cachedHome": true,
+        "homeDomMs": 623,
+        "homePaintMs": 1026,
+        "capabilitiesMs": 1067,
+        "videoQueuedMs": 1069,
+        "videoGateReleasedMs": 1069,
+        "videoRequestedMs": 1093,
+        "cachedIconMs": 1189,
+        "inventoryMs": 1257,
+        "firstIconMs": 1656,
+        "videoPlayingMs": 1976
+      },
+      "quality": "4K · Dolby Vision",
+      "video": {
+        "width": 3840,
+        "height": 2160,
+        "paused": false
+      },
+      "sample": 1
+    },
+    {
+      "delaySeconds": 3,
+      "keys": [
+        {
+          "atMs": 1383,
+          "twoFramesMs": 12.2
+        },
+        {
+          "atMs": 1837,
+          "twoFramesMs": 15.3
+        },
+        {
+          "atMs": 2272,
+          "twoFramesMs": 46.7
+        },
+        {
+          "atMs": 2761,
+          "twoFramesMs": 106.8
+        }
+      ],
+      "gridDomMs": 418,
+      "gridFrameMs": 699,
+      "videoPlayingMs": 4520,
+      "startup": {
+        "scriptMs": 242,
+        "cachedHome": true,
+        "homeDomMs": 329,
+        "homePaintMs": 699,
+        "capabilitiesMs": 712,
+        "videoQueuedMs": 714,
+        "cachedIconMs": 720,
+        "inventoryMs": 791,
+        "firstIconMs": 814,
+        "videoGateReleasedMs": 3962,
+        "videoRequestedMs": 3978,
+        "videoPlayingMs": 4521
+      },
+      "quality": "4K · Dolby Vision",
+      "video": {
+        "width": 3840,
+        "height": 2160,
+        "paused": false
+      },
+      "sample": 2
+    },
+    {
+      "delaySeconds": 3,
+      "keys": [
+        {
+          "atMs": 1378,
+          "twoFramesMs": 11.6
+        },
+        {
+          "atMs": 1847,
+          "twoFramesMs": 15.2
+        },
+        {
+          "atMs": 2276,
+          "twoFramesMs": 17.6
+        },
+        {
+          "atMs": 2651,
+          "twoFramesMs": 97.7
+        }
+      ],
+      "gridDomMs": 394,
+      "gridFrameMs": 728,
+      "videoPlayingMs": 4338,
+      "startup": {
+        "scriptMs": 242,
+        "cachedHome": true,
+        "homeDomMs": 333,
+        "homePaintMs": 728,
+        "capabilitiesMs": 752,
+        "videoQueuedMs": 754,
+        "cachedIconMs": 761,
+        "firstIconMs": 830,
+        "inventoryMs": 836,
+        "videoGateReleasedMs": 3852,
+        "videoRequestedMs": 3867,
+        "videoPlayingMs": 4339
+      },
+      "quality": "4K · Dolby Vision",
+      "video": {
+        "width": 3840,
+        "height": 2160,
+        "paused": false
+      },
+      "sample": 3
+    },
+    {
+      "delaySeconds": 0,
+      "keys": [
+        {
+          "atMs": 1431,
+          "twoFramesMs": 23.7
+        },
+        {
+          "atMs": 1906,
+          "twoFramesMs": 80.5
+        },
+        {
+          "atMs": 2352,
+          "twoFramesMs": 450.9
+        },
+        {
+          "atMs": 2765,
+          "twoFramesMs": 150.8
+        }
+      ],
+      "gridDomMs": 338,
+      "gridFrameMs": 727,
+      "videoPlayingMs": 1465,
+      "startup": {
+        "scriptMs": 217,
+        "cachedHome": true,
+        "homeDomMs": 287,
+        "homePaintMs": 727,
+        "capabilitiesMs": 739,
+        "videoQueuedMs": 741,
+        "cachedIconMs": 748,
+        "videoGateReleasedMs": 794,
+        "videoRequestedMs": 816,
+        "inventoryMs": 855,
+        "firstIconMs": 1000,
+        "videoPlayingMs": 1465
+      },
+      "quality": "4K · Dolby Vision",
+      "video": {
+        "width": 3840,
+        "height": 2160,
+        "paused": false
+      },
+      "sample": 4
+    },
+    {
+      "delaySeconds": 0,
+      "keys": [
+        {
+          "atMs": 1505,
+          "twoFramesMs": 122.3
+        },
+        {
+          "atMs": 1964,
+          "twoFramesMs": 89.6
+        },
+        {
+          "atMs": 2382,
+          "twoFramesMs": 110.7
+        },
+        {
+          "atMs": 2683,
+          "twoFramesMs": 23.5
+        }
+      ],
+      "gridDomMs": 378,
+      "gridFrameMs": 748,
+      "videoPlayingMs": 1405,
+      "startup": {
+        "scriptMs": 236,
+        "cachedHome": true,
+        "homeDomMs": 308,
+        "homePaintMs": 748,
+        "capabilitiesMs": 785,
+        "videoQueuedMs": 789,
+        "videoGateReleasedMs": 790,
+        "videoRequestedMs": 816,
+        "cachedIconMs": 852,
+        "inventoryMs": 870,
+        "firstIconMs": 1225,
+        "videoPlayingMs": 1406
+      },
+      "quality": "4K · Dolby Vision",
+      "video": {
+        "width": 3840,
+        "height": 2160,
+        "paused": false
+      },
+      "sample": 5
+    },
+    {
+      "delaySeconds": 3,
+      "keys": [
+        {
+          "atMs": 1349,
+          "twoFramesMs": 10.4
+        },
+        {
+          "atMs": 1793,
+          "twoFramesMs": 16.1
+        },
+        {
+          "atMs": 2229,
+          "twoFramesMs": 38.6
+        },
+        {
+          "atMs": 2698,
+          "twoFramesMs": 99.9
+        }
+      ],
+      "gridDomMs": 425,
+      "gridFrameMs": 755,
+      "videoPlayingMs": 4459,
+      "startup": {
+        "scriptMs": 237,
+        "cachedHome": true,
+        "homeDomMs": 368,
+        "homePaintMs": 755,
+        "capabilitiesMs": 796,
+        "videoQueuedMs": 799,
+        "cachedIconMs": 807,
+        "inventoryMs": 877,
+        "firstIconMs": 979,
+        "videoGateReleasedMs": 3899,
+        "videoRequestedMs": 3914,
+        "videoPlayingMs": 4459
+      },
+      "quality": "4K · Dolby Vision",
+      "video": {
+        "width": 3840,
+        "height": 2160,
+        "paused": false
+      },
+      "sample": 6
+    }
+  ]
+}

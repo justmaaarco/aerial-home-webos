@@ -1,8 +1,8 @@
 # Startup performance
 
-## Candidate: deferred aerial startup
+## Deferred aerial startup (0.2.4)
 
-Version 0.2.4 is prepared locally and has not been deployed. It reserves the first three seconds after Home's second animation-frame callback for the interface before starting the initial aerial. The same entry window applies when returning from another app. No video source is attached and no decoder is requested by Aerial Home during this wait.
+Version 0.2.4 has been installed and tested on the development TV; it is not yet a public release. It reserves the first three seconds after Home's second animation-frame callback for the interface before starting the initial aerial. The same entry window applies when returning from another app. No video source is attached and no decoder is requested by Aerial Home during this wait.
 
 With a nonzero delay, playback also waits until 1.2 seconds after the most recent remote, keyboard, pointer or wheel activity, and until any launcher menu opened before playback has closed. This postpones initial video work while the user is navigating. The existing idle backdrop remains visible. It does not pause an already-playing aerial when menus open. Explicit in-app scene selections, the video-on switch and subsequent clips bypass the entry delay.
 
@@ -10,7 +10,20 @@ With a nonzero delay, playback also waits until 1.2 seconds after the most recen
 
 Clock-driven tests verify first-frame ordering, the delay boundary, ongoing navigation, open-menu postponement, cancellation on exit, a fresh entry window on return, explicit choices and clip transitions without duplicate starts. Timing marks `videoQueuedMs` and `videoGateReleasedMs` expose the first queued/released entry in the existing local diagnostic object.
 
-This is a mitigation for competing work when landing on Home. An actual improvement in TV responsiveness has not been measured. Sustained lag after video starts still needs profiling; delaying playback does not reduce steady-state decoder or compositor work.
+### Hardware comparison
+
+On the LG B4 / webOS 9.2.4, six fresh app-process launches with populated caches alternated delay settings in the order 0, 3, 3, 0, 0, 3 seconds. All used the same Iceland Snow Caps aerial and the same build. Four injected left/right key events per run sampled the early landing window. A temporary capture listener measured from key-event handler entry until the second animation-frame callback. These are software scheduling measurements, not physical remote latency or input-to-photon readings.
+
+| Metric | No timed delay | 3-second delay |
+| --- | ---: | ---: |
+| Median key-to-second-frame callback (12 events per setting) | 100.15 ms | 16.85 ms |
+| Slowest sampled key-to-second-frame callback | 450.9 ms | 106.8 ms |
+| Median second frame callback after grid (3 launches per setting) | 748 ms | 728 ms |
+| Median first video playing event (3 launches per setting) | 1,465 ms | 4,459 ms |
+
+Video remained 3840×2160 Dolby Vision in every run. Home rendering was broadly similar; the measured benefit was early navigation scheduling while video startup was deferred. The tradeoff is later moving footage. This is a small controlled sample on one TV and clip, not a guarantee of physical-remote feel or a fix for sustained lag once video plays. Delaying playback does not reduce steady-state decoder or compositor work. [Individual samples](startup-delay-measurements.json) contain numeric observations without private inventory or artwork.
+
+The benchmark changed preferences only in memory with persistence disabled. The measurement harness was removed, the installed source hash verified against the original package, and the normal app relaunched after testing.
 
 ## Cached Home (released in 0.2.1)
 
