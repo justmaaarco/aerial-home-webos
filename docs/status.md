@@ -4,9 +4,9 @@ Version 0.2.4 is installed on the development TV and remains unpublished. The en
 
 This alpha was developed on 22 October 2026. tvOS 26 is the selected visual reference, not a promise of feature or pixel identity.
 
-## Local 0.2.5 clock candidate
+## Local 0.2.5 appearance candidate
 
-Four clock styles, optional date, system/12/24-hour formatting and a full-screen clock are prepared locally. The installed development TV remains on 0.2.4. The clock candidate has not been deployed or publicly released. Forty-one automated tests pass, including clock preference migration, formatting, full-screen entry/wake and OLED integration. See [clock behavior and local validation](clocks.md); native TV rendering/performance checks remain pending.
+Four clock styles, optional date, system/12/24-hour formatting, a full-screen clock, four independent icon styles and Home label visibility are prepared locally. The installed development TV remains on 0.2.4. This candidate has not been deployed or publicly released. Forty-three automated tests pass, including clock preference migration, formatting, full-screen entry/wake, OLED integration and independent icon settings without rebuilding or launching tiles. See [clocks](clocks.md) and [icons](icons.md) for behavior and local validation; native TV rendering/performance checks remain pending.
 
 ## Verified
 

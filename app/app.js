@@ -49,20 +49,23 @@
   };
   paths.clock='<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>';
   const clockStyles={classic:{name:'Classic',detail:'Original corner clock and greeting'},minimal:{name:'Minimal',detail:'Light numerals, quiet spacing'},glass:{name:'Liquid Glass',detail:'Translucent, sculpted numerals'},immersive:{name:'Immersive',detail:'An expansive clock over your aerial'}};
+  const iconStyles={classic:{name:'Classic',detail:'Original app artwork and tiles'},glass:{name:'Liquid Glass',detail:'Inset artwork, translucent frame'},minimal:{name:'Minimal',detail:'Quiet surfaces, less decoration'},mono:{name:'Monochrome',detail:'Grayscale artwork and neutral tiles'}};
   paths.apps='<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>';
   function svg(name) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(paths[name]||paths.play)+'</svg>'; }
   function el(tag,className,text) { const n=document.createElement(tag); if(className)n.className=className; if(text!==undefined)n.textContent=text; return n; }
   function toast(message) { $('toast').textContent=message;$('toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').hidden=true,4500); }
   async function safely(action) { try { await action(); } catch(error) { toast(error.message || 'The TV could not complete that action'); } }
-  function save() {
+  function save(refreshHome=true) {
     try { localStorage.setItem('aerial-home-v1',JSON.stringify(prefs)); } catch (_) { toast('Settings could not be saved: TV storage is full'); }
-    homeDirty=true;applyAppearance();
+    if(refreshHome)homeDirty=true;applyAppearance();
   }
   function applyAppearance() {
     const hour=new Date().getHours();
     document.body.classList.toggle('light',prefs.appearance==='light' || (prefs.appearance==='auto' && hour>=7 && hour<19));
     document.body.classList.toggle('reduced',prefs.reduceMotion);
     document.body.dataset.clockStyle=prefs.clockStyle;
+    document.body.dataset.iconStyle=prefs.iconStyle;
+    document.body.dataset.iconLabels=prefs.iconLabels;
     $('hero-clock').hidden=prefs.clockStyle==='classic';
     document.documentElement.style.setProperty('--cols',prefs.columns);
     $('profile-name').textContent=prefs.profile;
@@ -214,6 +217,7 @@
     control(p,'App size','tv',prefs.columns===6?'Standard · 6 columns':'Large · 5 columns',()=>{prefs.columns=prefs.columns===6?5:6;save();render(null,false);settings();});
     control(p,'Reduce motion','controls',prefs.reduceMotion?'On':'Off',()=>{prefs.reduceMotion=!prefs.reduceMotion;save();settings();});
     control(p,'Clock style','clock',clockStyles[prefs.clockStyle].name,clockSettings);
+    control(p,'Icon style','apps',iconStyles[prefs.iconStyle].name,iconSettings);
     control(p,'Aerials & screen saver','picture','4K HEVC',aerialSettings);
     control(p,'OLED care','moon',prefs.oledProtection?'Static element protection':prefs.oledDimming?'30-minute dimming':'Off',oledSettings);
     section(p,'HOME SCREEN');
@@ -240,16 +244,29 @@
     const p=panel('Clock style','clock');
     section(p,'ON HOME AND FULL SCREEN');
     for(const [id,style] of Object.entries(clockStyles)){
-      const b=control(p,style.name,'clock',prefs.clockStyle===id?'Selected':style.detail,()=>{prefs.clockStyle=id;save();clockSettings(id);});
+      const b=control(p,style.name,'clock',prefs.clockStyle===id?'Selected':style.detail,()=>{prefs.clockStyle=id;save(false);clockSettings(id);});
       b.classList.toggle('selected',prefs.clockStyle===id);b.setAttribute('aria-pressed',String(prefs.clockStyle===id));b.dataset.clockChoice=id;
       if(id===focusStyle)queueMicrotask(()=>b.focus());
     }
     section(p,'DISPLAY');
-    const format=control(p,'Time format','clock',{'auto':'System','12':'12-hour','24':'24-hour'}[prefs.clockFormat],()=>{const choices=['auto','12','24'];prefs.clockFormat=choices[(choices.indexOf(prefs.clockFormat)+1)%choices.length];save();clockSettings('format');});
-    const date=control(p,'Show date','picture',prefs.clockDate?'On':'Off',()=>{prefs.clockDate=!prefs.clockDate;save();clockSettings('date');});
+    const format=control(p,'Time format','clock',{'auto':'System','12':'12-hour','24':'24-hour'}[prefs.clockFormat],()=>{const choices=['auto','12','24'];prefs.clockFormat=choices[(choices.indexOf(prefs.clockFormat)+1)%choices.length];save(false);clockSettings('format');});
+    const date=control(p,'Show date','picture',prefs.clockDate?'On':'Off',()=>{prefs.clockDate=!prefs.clockDate;save(false);clockSettings('date');});
     if(focusStyle==='format'||focusStyle==='date')queueMicrotask(()=>(focusStyle==='format'?format:date).focus());
     control(p,'View full-screen clock','tv','Any key returns Home',()=>{closePanel();startSaver(true);});
     note(p,'Styles apply to Home and the full-screen clock. OLED care still shifts, fades and hides every clock. No seconds animation or live backdrop blur.');
+  }
+  function iconSettings(focusChoice=null) {
+    const p=panel('Icon style','icons');
+    section(p,'APP TILES AND INPUTS');
+    for(const [id,style] of Object.entries(iconStyles)){
+      const b=control(p,style.name,'apps',prefs.iconStyle===id?'Selected':style.detail,()=>{prefs.iconStyle=id;save(false);iconSettings(id);});
+      b.classList.toggle('selected',prefs.iconStyle===id);b.setAttribute('aria-pressed',String(prefs.iconStyle===id));
+      if(id===focusChoice)queueMicrotask(()=>b.focus());
+    }
+    section(p,'LABELS');
+    const labels=control(p,'Home labels','tv',prefs.iconLabels==='always'?'Always visible':'On focus',()=>{prefs.iconLabels=prefs.iconLabels==='always'?'focused':'always';save(false);iconSettings('labels');});
+    if(focusChoice==='labels')queueMicrotask(()=>labels.focus());
+    note(p,'Applies to Home, All apps, folders and input tiles. Uses the same app artwork; clock style is independent. Glass uses static highlights without live blur.');
   }
   function aerialSettings() {
     const p=panel('Aerials','aerials');

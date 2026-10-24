@@ -36,6 +36,7 @@ Public screenshots use original demo icons and an AI-generated scenic still, not
 - Cached Home renders before TV discovery on repeat launches. Local artwork is reused from a bounded IndexedDB cache; HDMI and HDR discovery no longer block Home. See [startup behavior and measurements](docs/startup.md).
 - Home gets a configurable three-second head start before the first aerial starts, including on return from another app. Navigation and open menus postpone pending playback; an already-playing aerial continues behind menus. A small LG B4 comparison measured faster early navigation scheduling; see [method and limits](docs/startup.md).
 - Clock styles in the local 0.2.5 candidate: Classic, Minimal, Liquid Glass and Immersive, with a full-screen view, system/12/24-hour time and optional date. [Clock behavior and validation](docs/clocks.md). This candidate has not been installed on the TV or publicly released.
+- Independent icon styles in the same candidate: Classic, Liquid Glass, Minimal and Monochrome, plus optional always-visible Home labels. Styles reuse the existing app artwork and apply to Home, All apps, folders and input tiles. [Icon behavior and validation](docs/icons.md).
 
 Apple Account, Siri, FaceTime, HomeKit, AirPlay routing, Apple Music Sing and tvOS App Store apps are not implemented. A profile name does not switch streaming-service accounts. Search searches installed apps, not streaming catalogues. There is no fabricated Top Shelf/watch history integration. See [scope and validation](docs/status.md).
 

@@ -26,6 +26,8 @@
       clockStyle: ['classic','minimal','glass','immersive'].includes(x.clockStyle) ? x.clockStyle : 'classic',
       clockFormat: ['auto','12','24'].includes(x.clockFormat) ? x.clockFormat : 'auto',
       clockDate: typeof x.clockDate==='boolean' ? x.clockDate : true,
+      iconStyle: ['classic','glass','minimal','mono'].includes(x.iconStyle) ? x.iconStyle : 'classic',
+      iconLabels: ['focused','always'].includes(x.iconLabels) ? x.iconLabels : 'focused',
       profile: typeof x.profile === 'string' ? x.profile.slice(0,32) || 'Home' : 'Home',
       order: Array.isArray(x.order) ? [...new Set(x.order.filter(v=>typeof v==='string'))] : [],
       hidden: Array.isArray(x.hidden) ? [...new Set(x.hidden.filter(v=>typeof v==='string'))] : [],

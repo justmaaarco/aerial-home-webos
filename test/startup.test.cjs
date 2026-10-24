@@ -3,7 +3,7 @@ const {test}=require('node:test'),assert=require('node:assert/strict'),vm=requir
 const core=require('../app/core.js'),media=require('../app/media.js');
 const deferred=()=>{let resolve,reject;const promise=new Promise((a,b)=>{resolve=a;reject=b;});return {promise,resolve,reject};};
 function boot(cached,deniedStorage=false,preferences={},sceneList=[]) {
-  const nodes=new Map(),frames=[],timers=[],intervals=[],calls=[],events={},documentEvents={};
+  const nodes=new Map(),frames=[],timers=[],intervals=[],calls=[],events={},documentEvents={},saved=[];
   let now=0;
   let document;
   class Element {
@@ -29,7 +29,7 @@ function boot(cached,deniedStorage=false,preferences={},sceneList=[]) {
   }
   document={body:new Element('body'),documentElement:new Element('html'),activeElement:null,hidden:false,createElement:tag=>new Element(tag),getElementById:id=>{if(!nodes.has(id))nodes.set(id,new Element());return nodes.get(id);},addEventListener(name,fn){(documentEvents[name]||=[]).push(fn);},querySelectorAll(){return [];}};
   const inventory=deferred(),capabilities=deferred(),inputs=deferred();
-  const context={document,localStorage:{getItem:()=>JSON.stringify({selectionImported:true,aerial:false,...preferences}),setItem(){}},Date:class extends Date{static now(){return now;}},innerWidth:1920,innerHeight:1080,addEventListener(name,fn){(events[name]||=[]).push(fn);},setInterval(fn,ms){intervals.push({fn,ms});},clearTimeout(timer){if(timer)timer.cancelled=true;},setTimeout(fn,ms=0){const timer=()=>{if(!timer.cancelled){timer.cancelled=true;fn();}};timer.due=now+ms;timers.push(timer);return timer;},requestAnimationFrame:fn=>{frames.push(fn);},performance:{now:()=>now},queueMicrotask,console,
+  const context={document,localStorage:{getItem:()=>JSON.stringify({selectionImported:true,aerial:false,...preferences}),setItem(key,value){saved.push({key,value:JSON.parse(value)});}},Date:class extends Date{static now(){return now;}},innerWidth:1920,innerHeight:1080,addEventListener(name,fn){(events[name]||=[]).push(fn);},setInterval(fn,ms){intervals.push({fn,ms});},clearTimeout(timer){if(timer)timer.cancelled=true;},setTimeout(fn,ms=0){const timer=()=>{if(!timer.cancelled){timer.cancelled=true;fn();}};timer.due=now+ms;timers.push(timer);return timer;},requestAnimationFrame:fn=>{frames.push(fn);},performance:{now:()=>now},queueMicrotask,console,
     AerialCore:core,AerialMedia:media,APPLE_AERIALS:{scenes:sceneList},AerialCache:{create:()=>({read:()=>cached,save(){},icon:async()=>null}),iconKey:()=>''},
     TV:{live:true,call:async()=>({volume:20}),listApps:()=>{calls.push('apps');return inventory.promise;},capabilities:()=>{calls.push('caps');return capabilities.promise;},listInputs:()=>{calls.push('inputs');return inputs.promise;},lumaFavorites:async()=>[],launch:async id=>{calls.push('launch:'+id);}}};
   if(deniedStorage)for(const key of ['localStorage','indexedDB'])Object.defineProperty(context,key,{get(){throw Error('Storage denied');}});
@@ -37,9 +37,30 @@ function boot(cached,deniedStorage=false,preferences={},sceneList=[]) {
   const fire=(name,detail={},source=events)=>{const e={keyCode:0,preventDefault(){this.prevented=true;},stopImmediatePropagation(){this.stopped=true;},...detail};for(const fn of source[name]||[]){fn(e);if(e.stopped)break;}return e;};
   const key=value=>fire('keydown',{key:value});
   const runTimers=async()=>{for(let i=0;i<100;i++){const next=timers.filter(t=>!t.cancelled&&t.due<=now).sort((a,b)=>a.due-b.due)[0];if(!next)return;next();await new Promise(setImmediate);}throw Error('Timer loop did not settle');};
-  return {nodes,frames,timers,calls,inventory,capabilities,inputs,context,document,key,fire,documentEvent:(name,detail)=>fire(name,detail,documentEvents),advance:ms=>{now+=ms;},idleTick:()=>intervals.find(i=>i.ms===5000).fn(),paint:()=>{while(frames.length)frames.shift()();},runTimers};
+  return {nodes,frames,timers,calls,saved,inventory,capabilities,inputs,context,document,key,fire,documentEvent:(name,detail)=>fire(name,detail,documentEvents),advance:ms=>{now+=ms;},idleTick:()=>intervals.find(i=>i.ms===5000).fn(),paint:()=>{while(frames.length)frames.shift()();},runTimers};
 }
 const app={id:'netflix',title:'Netflix',glyph:'play'};
+
+test('icon choices persist independently, retain cached artwork and do not rebuild or launch tiles',async()=>{
+  const art={...app,image:'data:image/png;base64,c2FtcGxl'},input={id:'com.webos.app.hdmi1',title:'HDMI 1',input:true};
+  const b=boot({apps:[art,input],caps:null},false,{clockStyle:'immersive'}),tile=b.nodes.get('grid').firstElementChild,image=tile.firstElementChild.firstElementChild;
+  assert.equal(b.document.body.dataset.iconStyle,'classic');assert.equal(image.src,art.image);
+  const control=label=>b.nodes.get('panel').children.find(n=>n.tagName==='BUTTON'&&n.children.some(c=>c.textContent===label));
+  b.key('c');control('Settings').click();control('Icon style').click();
+  for(const [label,id] of [['Minimal','minimal'],['Monochrome','mono'],['Classic','classic'],['Liquid Glass','glass']]){
+    control(label).click();await new Promise(setImmediate);
+    assert.equal(b.document.body.dataset.iconStyle,id);assert.equal(control(label).getAttribute('aria-pressed'),'true');assert.equal(b.document.activeElement,control(label));
+    assert.equal(b.nodes.get('grid').firstElementChild,tile);assert.equal(tile.firstElementChild.firstElementChild,image);
+  }
+  control('Home labels').click();await new Promise(setImmediate);assert.equal(b.document.activeElement,control('Home labels'));
+  assert.equal(b.document.body.dataset.iconLabels,'always');assert.equal(b.document.body.dataset.clockStyle,'immersive');
+  const stored=b.saved.at(-1);assert.equal(stored.key,'aerial-home-v1');assert.equal(stored.value.iconStyle,'glass');assert.equal(stored.value.iconLabels,'always');
+  b.key('Escape');assert.equal(b.nodes.get('grid').firstElementChild,tile);assert.equal(b.document.activeElement,tile);
+  b.key('ArrowDown');assert.equal(b.nodes.get('input-row').hidden,false);assert.equal(b.document.activeElement.dataset.id,input.id);
+  assert.equal(b.calls.some(c=>c.startsWith('launch:')),false);
+  const restored=boot({apps:[art,input],caps:null},false,stored.value);
+  assert.equal(restored.document.body.dataset.iconStyle,'glass');assert.equal(restored.document.body.dataset.iconLabels,'always');assert.equal(restored.document.body.dataset.clockStyle,'immersive');
+});
 
 test('clock styles apply on Home and full screen; first wake key cannot launch an app',async()=>{
   const b=boot({apps:[app],caps:null},false,{aerial:false,saverMinutes:0});

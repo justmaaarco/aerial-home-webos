@@ -1,6 +1,12 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const {clean,visible,nextIndex,oledState,clockFace}=require('../app/core.js');
+test('icon preferences keep existing artwork by default and validate style and label options',()=>{
+  const migrated=clean({clockStyle:'immersive'});assert.equal(migrated.iconStyle,'classic');assert.equal(migrated.iconLabels,'focused');
+  for(const iconStyle of ['classic','glass','minimal','mono'])assert.equal(clean({iconStyle}).iconStyle,iconStyle);
+  const invalid=clean({iconStyle:'external-icons',iconLabels:true});assert.equal(invalid.iconStyle,'classic');assert.equal(invalid.iconLabels,'focused');
+  assert.equal(clean({iconLabels:'always'}).iconLabels,'always');assert.equal(clean({iconStyle:'glass',clockStyle:'minimal'}).clockStyle,'minimal');
+});
 test('clock preferences migrate to Classic and reject unsupported styles or display options',()=>{
   const old=clean({profile:'Home'});assert.equal(old.clockStyle,'classic');assert.equal(old.clockFormat,'auto');assert.equal(old.clockDate,true);
   for(const clockStyle of ['classic','minimal','glass','immersive'])assert.equal(clean({clockStyle}).clockStyle,clockStyle);

@@ -19,6 +19,23 @@ body.tv #panel{background:linear-gradient(150deg,rgba(58,70,91,.95),rgba(27,37,5
 body.tv .control{transition:background .08s}body.tv .control:focus{transform:none}
 #all-app-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:35px;padding:20px}
 @keyframes panel-fade{from{opacity:.6}to{opacity:1}}
+/* Optional tile treatments preserve artwork, button geometry and focus/navigation. */
+body[data-icon-labels=always] .app-label{opacity:1}
+body[data-icon-style=glass] .tile{background:linear-gradient(145deg,#ffffff33,#ffffff0c 52%,#b9d9ff21);box-shadow:inset 0 1px 2px #ffffffab,inset 0 -1px 1px #ffffff36,0 8px 18px #03122626;backdrop-filter:none;-webkit-backdrop-filter:none}
+body[data-icon-style=glass] .tile:after{background:linear-gradient(155deg,#ffffff29,transparent 42%,#cde6ff0a);border-color:#ffffff70}
+body[data-icon-style=glass] .tile img{width:74%;height:74%;border-radius:16px;object-fit:contain}
+body[data-icon-style=glass] .app:focus .tile,body[data-icon-style=glass] .input-button:focus .tile{background:linear-gradient(145deg,#ffffff66,#ffffff25 52%,#b9d9ff3b);color:var(--ink);box-shadow:0 0 0 3px #ffffffe0,inset 0 1px 2px #fff,0 10px 22px #03122640}
+body[data-icon-style=minimal] .tile{background:#182b3b4d;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+body[data-icon-style=minimal] .tile:after{background:none;border-color:#ffffff24}
+body[data-icon-style=minimal] .tile img{width:78%;height:78%;border-radius:12px;object-fit:contain}
+body[data-icon-style=minimal] .app:focus .tile,body[data-icon-style=minimal] .input-button:focus .tile{background:#ffffff26;color:var(--ink);box-shadow:0 0 0 3px var(--focus)}
+/* Filter only small artwork/glyph surfaces, never the UI plane or aerial video. */
+body[data-icon-style=mono] .tile{background:linear-gradient(145deg,#444a52,#272d34);color:#fff;backdrop-filter:none;-webkit-backdrop-filter:none}
+body[data-icon-style=mono] .tile img,body[data-icon-style=mono] .tile svg,body[data-icon-style=mono] .folder-dot{filter:grayscale(1)}
+body[data-icon-style=mono] .input-button:focus .tile{background:#f5f8ff;color:#1d293d}
+body.light[data-icon-style=glass] .tile{background:linear-gradient(145deg,#ffffff8f,#dfeeff4d 52%,#ffffff70)}
+body.light[data-icon-style=minimal] .tile{background:#eff6ff55}
+body.light[data-icon-style=minimal] .app:focus .tile,body.light[data-icon-style=minimal] .input-button:focus .tile{background:#ffffffa1}
 /* Clock faces use the existing ten-second tick, with no seconds animation or live blur. */
 .clock-face{pointer-events:none;font-variant-numeric:tabular-nums}
 .clock-face time{display:flex;align-items:baseline;gap:18px;white-space:nowrap}
