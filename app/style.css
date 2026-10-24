@@ -19,6 +19,36 @@ body.tv #panel{background:linear-gradient(150deg,rgba(58,70,91,.95),rgba(27,37,5
 body.tv .control{transition:background .08s}body.tv .control:focus{transform:none}
 #all-app-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:35px;padding:20px}
 @keyframes panel-fade{from{opacity:.6}to{opacity:1}}
+/* Clock faces use the existing ten-second tick, with no seconds animation or live blur. */
+.clock-face{pointer-events:none;font-variant-numeric:tabular-nums}
+.clock-face time{display:flex;align-items:baseline;gap:18px;white-space:nowrap}
+.clock-digits{display:inline-block;line-height:1.04;font-variant-numeric:tabular-nums}
+.clock-period{font-size:28px;font-weight:550;letter-spacing:0;line-height:1.2}
+.clock-date{font-size:24px;font-weight:450;letter-spacing:.1px;margin-top:12px;line-height:1.3}
+body:not([data-clock-style=classic]) #clock,body:not([data-clock-style=classic]) #hero-greeting,body:not([data-clock-style=classic]) #hero-subtitle{display:none}
+body:not([data-clock-style=classic]) #hero{padding-top:148px}
+#home-clock{font-size:176px;font-weight:260;letter-spacing:-9px;text-shadow:0 3px 20px #06142638}
+body[data-clock-style=glass] #home-clock{font-size:186px;font-weight:650;letter-spacing:-10px}
+/* A static highlight and fine edge suggest glass without sampling the video plane. */
+body[data-clock-style=glass] .clock-digits{color:#eaf3ff;background:linear-gradient(165deg,#ffffffed 8%,#e6f2ff96 34%,#ffffffdf 47%,#b9dbf766 68%,#ffffffdb 94%);background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;-webkit-text-stroke:1px #f2f8ff9c;text-shadow:0 5px 18px #091a362b}
+body[data-clock-style=glass] .clock-date{color:#f1f6ffdf;text-shadow:0 2px 8px #06142660}
+body[data-clock-style=immersive] #hero{padding-top:102px}
+body[data-clock-style=immersive] #hero-clock{text-align:center}
+body[data-clock-style=immersive] #home-clock{justify-content:center;font-size:268px;font-weight:720;letter-spacing:-11px;line-height:1}
+body[data-clock-style=immersive] #home-clock .clock-period{font-size:34px}
+body[data-clock-style=immersive] #home-clock-date{font-size:25px;letter-spacing:2px;margin-top:10px}
+/* OLED care moves the entire UI; avoid a separate continuous clock drift layer. */
+body #saver-caption{animation:none;max-width:1728px}
+#saver-caption .clock-date{margin-top:0}
+body[data-clock-style=minimal] #saver-caption,body[data-clock-style=glass] #saver-caption,body[data-clock-style=immersive] #saver-caption{left:96px;right:96px;top:0;bottom:0;align-items:center;justify-content:center;gap:20px;text-align:center}
+body[data-clock-style=minimal] #saver-clock{font-size:270px;font-weight:240;letter-spacing:-14px}
+body[data-clock-style=glass] #saver-clock{font-size:310px;font-weight:650;letter-spacing:-17px}
+body[data-clock-style=immersive] #saver-clock{font-size:430px;font-weight:720;letter-spacing:-18px}
+body:not([data-clock-style=classic]) #saver-clock .clock-period{font-size:44px}
+body:not([data-clock-style=classic]) #saver-caption .clock-date{font-size:32px;letter-spacing:1px}
+body:not([data-clock-style=classic]) #saver-place{font-size:21px;opacity:.75;letter-spacing:.3px}
+body.light[data-clock-style=glass] .clock-digits{background-image:linear-gradient(165deg,#17304bde 8%,#2e4b6a8c 34%,#17304bd9 47%,#45637d88 68%,#17304bdb 94%);-webkit-text-stroke-color:#18365570}
+body.light[data-clock-style=glass] .clock-date{color:#243950}
 :root{font-family:Inter,'Helvetica Neue',Arial,sans-serif;color:#fff;background:#17243b;font-synthesis:none;--ink:#fff;--muted:#d4dce9;--panel:rgba(63,73,91,.64);--card:rgba(255,255,255,.1);--focus:#f8faff;--cols:6}
 *{box-sizing:border-box}body{margin:0;overflow:hidden}button,input{font:inherit}button{color:inherit;border:0;cursor:pointer}button:focus-visible,input:focus-visible{outline:4px solid var(--focus);outline-offset:5px}button:disabled{opacity:.4;cursor:default}[hidden]{display:none!important}#toolbar{z-index:5}#panel{z-index:10}#toast{z-index:12}
 #aerial,.wash{position:fixed;inset:0;width:100%;height:100%;object-fit:cover}#aerial{background:linear-gradient(155deg,#354b70,#1f3544 48%,#182439);z-index:0}.wash{pointer-events:none;z-index:1;background:linear-gradient(180deg,rgba(5,12,25,.08),rgba(8,16,32,.1) 30%,rgba(5,12,27,.66) 100%)}#home{bottom:140px!important}

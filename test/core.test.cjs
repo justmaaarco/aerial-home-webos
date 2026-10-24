@@ -1,6 +1,22 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const {clean,visible,nextIndex,oledState}=require('../app/core.js');
+const {clean,visible,nextIndex,oledState,clockFace}=require('../app/core.js');
+test('clock preferences migrate to Classic and reject unsupported styles or display options',()=>{
+  const old=clean({profile:'Home'});assert.equal(old.clockStyle,'classic');assert.equal(old.clockFormat,'auto');assert.equal(old.clockDate,true);
+  for(const clockStyle of ['classic','minimal','glass','immersive'])assert.equal(clean({clockStyle}).clockStyle,clockStyle);
+  const invalid=clean({clockStyle:'<style>',clockFormat:24,clockDate:'false'});
+  assert.equal(invalid.clockStyle,'classic');assert.equal(invalid.clockFormat,'auto');assert.equal(invalid.clockDate,true);
+  assert.equal(clean({clockDate:false}).clockDate,false);
+});
+test('clock format respects locale, explicit 12/24-hour choice and midnight without seconds',()=>{
+  const midnight=new Date(2026,9,24,0,5,42),noon=new Date(2026,9,24,12,5,59);
+  const gb=clockFace(midnight,clean(),'en-GB'),us=clockFace(midnight,clean(),'en-US');
+  assert.equal(gb.time,'0:05');assert.equal(gb.period,'');assert.equal(us.time,'12:05');assert.equal(us.period,'AM');
+  const twentyFour=clockFace(midnight,clean({clockFormat:'24'}),'en-US');assert.equal(twentyFour.time,'00:05');assert.equal(twentyFour.period,'');
+  const twelve=clockFace(noon,clean({clockFormat:'12'}),'en-US');assert.equal(twelve.time,'12:05');assert.equal(twelve.period,'PM');assert.match(twelve.date,/Saturday.*October 24/);
+  assert.equal(clockFace(noon,clean({clockDate:false}),'en-GB').date,'');
+  assert.equal(clockFace(new Date(2026,9,24,0,5,0),clean(),'en-GB').time,gb.time);
+});
 test('aerial entry delay defaults to three seconds and preserves only supported timings',()=>{
   assert.equal(clean().aerialDelay,3);for(const value of [0,3,5,10])assert.equal(clean({aerialDelay:value}).aerialDelay,value);
   for(const value of [-1,2,NaN,'5',null])assert.equal(clean({aerialDelay:value}).aerialDelay,3);

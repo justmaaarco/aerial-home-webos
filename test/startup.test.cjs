@@ -40,6 +40,27 @@ function boot(cached,deniedStorage=false,preferences={},sceneList=[]) {
   return {nodes,frames,timers,calls,inventory,capabilities,inputs,context,document,key,fire,documentEvent:(name,detail)=>fire(name,detail,documentEvents),advance:ms=>{now+=ms;},idleTick:()=>intervals.find(i=>i.ms===5000).fn(),paint:()=>{while(frames.length)frames.shift()();},runTimers};
 }
 const app={id:'netflix',title:'Netflix',glyph:'play'};
+
+test('clock styles apply on Home and full screen; first wake key cannot launch an app',async()=>{
+  const b=boot({apps:[app],caps:null},false,{aerial:false,saverMinutes:0});
+  const control=label=>b.nodes.get('panel').children.find(n=>n.tagName==='BUTTON'&&n.children.some(c=>c.textContent===label));
+  assert.equal(b.document.body.dataset.clockStyle,'classic');assert.equal(b.nodes.get('hero-clock').hidden,true);
+  b.key('c');control('Settings').click();control('Clock style').click();control('Liquid Glass').click();await new Promise(setImmediate);
+  assert.equal(b.document.body.dataset.clockStyle,'glass');assert.equal(b.nodes.get('hero-clock').hidden,false);
+  assert.equal(control('Liquid Glass').getAttribute('aria-pressed'),'true');assert.equal(b.document.activeElement,control('Liquid Glass'));
+  assert.equal(b.nodes.get('home-clock-digits').textContent,b.nodes.get('saver-clock-digits').textContent);
+  control('Show date').click();assert.equal(b.nodes.get('home-clock-date').hidden,true);assert.equal(b.nodes.get('saver-clock-date').hidden,true);
+  control('Time format').click();control('Time format').click();assert.equal(b.nodes.get('home-clock-period').hidden,true);
+  control('Immersive').click();control('View full-screen clock').click();
+  assert.equal(b.document.body.dataset.clockStyle,'immersive');assert.equal(b.document.body.classList.contains('saver'),true);assert.equal(b.nodes.get('saver-caption').hidden,false);
+  assert.equal(b.calls.includes('video:play'),false);
+  b.advance(2*60000);b.idleTick();assert.equal(b.document.body.classList.contains('oled-faded'),true);
+  b.advance(3*60000);b.idleTick();assert.equal(b.document.body.classList.contains('oled-resting'),true);
+  b.key('Enter');b.fire('keyup',{key:'Enter'});assert.equal(b.document.body.classList.contains('saver'),false);assert.equal(b.document.body.classList.contains('oled-resting'),false);
+  assert.equal(b.calls.some(c=>c.startsWith('launch:')),false);
+  const restored=boot({apps:[app],caps:null},false,{clockStyle:'immersive',clockFormat:'24',clockDate:false});
+  assert.equal(restored.document.body.dataset.clockStyle,'immersive');assert.equal(restored.nodes.get('home-clock-period').hidden,true);assert.equal(restored.nodes.get('home-clock-date').hidden,true);
+});
 test('cached Home is focusable before service requests; refresh preserves the existing tiles',async()=>{
   const b=boot({apps:[app],caps:{dolbyVision:true,hdr10:true,uhd:true}}),grid=b.nodes.get('grid'),tile=grid.firstElementChild;
   assert.equal(tile.dataset.id,'netflix');assert.equal(b.document.activeElement,tile);assert.deepEqual(b.calls,[]);

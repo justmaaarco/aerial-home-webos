@@ -1,6 +1,6 @@
 (async function () {
   'use strict';
-  const {clean,visible,nextIndex,homeApps,starterFavorites,greeting,oledState}=AerialCore;
+  const {clean,visible,nextIndex,homeApps,starterFavorites,greeting,clockFace,oledState}=AerialCore;
   const {ShuffleBag,variants:mediaVariants,label:qualityLabel}=AerialMedia;
   const $=id=>document.getElementById(id);
   let prefs;
@@ -47,6 +47,8 @@
     picture:'<rect x="3" y="3" width="18" height="18" rx="4"/><path d="m3 17 6-6 4 4 3-3 5 5"/><circle cx="16" cy="8" r="1"/>',
     check:'<path d="m4 12 5 5L20 6"/>'
   };
+  paths.clock='<circle cx="12" cy="12" r="9"/><path d="M12 6v6l4 2"/>';
+  const clockStyles={classic:{name:'Classic',detail:'Original corner clock and greeting'},minimal:{name:'Minimal',detail:'Light numerals, quiet spacing'},glass:{name:'Liquid Glass',detail:'Translucent, sculpted numerals'},immersive:{name:'Immersive',detail:'An expansive clock over your aerial'}};
   paths.apps='<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>';
   function svg(name) { return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(paths[name]||paths.play)+'</svg>'; }
   function el(tag,className,text) { const n=document.createElement(tag); if(className)n.className=className; if(text!==undefined)n.textContent=text; return n; }
@@ -60,9 +62,12 @@
     const hour=new Date().getHours();
     document.body.classList.toggle('light',prefs.appearance==='light' || (prefs.appearance==='auto' && hour>=7 && hour<19));
     document.body.classList.toggle('reduced',prefs.reduceMotion);
+    document.body.dataset.clockStyle=prefs.clockStyle;
+    $('hero-clock').hidden=prefs.clockStyle==='classic';
     document.documentElement.style.setProperty('--cols',prefs.columns);
     $('profile-name').textContent=prefs.profile;
     syncOledProtection();
+    updateClock(new Date());
   }
   function fit() { $('stage').style.transform='scale('+Math.min(innerWidth/1920,innerHeight/1080)+')'; }
   addEventListener('resize',fit);fit();applyAppearance();
@@ -71,8 +76,16 @@
   function clock(refreshGreeting=false) {
     const date=new Date(),g=greeting(date.getHours(),Math.random,lastGreetingIndex),key=date.toDateString()+g.period;
     if(refreshGreeting||key!==greetingKey){greetingKey=key;lastGreetingIndex=g.index;$('hero-greeting').textContent=g.title;$('hero-subtitle').textContent=g.phrase;}
-    const text=new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
-    $('clock').textContent=text;$('saver-clock').textContent=text;
+    updateClock(date);
+  }
+  function updateClock(date) {
+    const face=clockFace(date,prefs),setText=(id,text)=>{if($(id).textContent!==text)$(id).textContent=text;};
+    setText('clock',face.label);
+    for(const prefix of ['home-clock','saver-clock']){
+      setText(prefix+'-digits',face.time);setText(prefix+'-period',face.period);setText(prefix+'-date',face.date);
+      $(prefix+'-date').hidden=!prefs.clockDate;$(prefix+'-period').hidden=!face.period;
+      $(prefix).setAttribute('aria-label',face.label);$(prefix).setAttribute('datetime',date.toISOString());
+    }
   }
   clock();setInterval(()=>clock(),10000);
   function tile(app) {
@@ -200,6 +213,7 @@
     control(p,'Appearance','picture',prefs.appearance,()=>{prefs.appearance={dark:'light',light:'auto',auto:'dark'}[prefs.appearance];save();settings();});
     control(p,'App size','tv',prefs.columns===6?'Standard · 6 columns':'Large · 5 columns',()=>{prefs.columns=prefs.columns===6?5:6;save();render(null,false);settings();});
     control(p,'Reduce motion','controls',prefs.reduceMotion?'On':'Off',()=>{prefs.reduceMotion=!prefs.reduceMotion;save();settings();});
+    control(p,'Clock style','clock',clockStyles[prefs.clockStyle].name,clockSettings);
     control(p,'Aerials & screen saver','picture','4K HEVC',aerialSettings);
     control(p,'OLED care','moon',prefs.oledProtection?'Static element protection':prefs.oledDimming?'30-minute dimming':'Off',oledSettings);
     section(p,'HOME SCREEN');
@@ -208,7 +222,7 @@
     control(p,'Hidden apps','tv',String(prefs.hidden.length),hiddenApps);
     control(p,'Profile name','person',prefs.profile,profile);
     control(p,'LG TV settings','settings','',()=>TV.live?TV.launch('com.palm.app.settings'):toast('Preview: opens LG TV settings'));
-    section(p,'ABOUT');note(p,'Aerial Home 0.2.4 · Independent open-source launcher. Built for webOS. Not affiliated with Apple or LG.');
+    section(p,'ABOUT');note(p,'Aerial Home 0.2.5 · Independent open-source launcher. Built for webOS. Not affiliated with Apple or LG.');
     note(p,TV.live?'Connected to LG webOS. Homebrew Channel supplies app discovery and local artwork.':'Browser preview — sample tiles are original placeholder artwork. Real installed apps appear on the TV.');
   }
   function oledSettings() {
@@ -221,6 +235,21 @@
     note(p,'Static elements shift slightly every minute, fade after 2 idle minutes and hide after 5. This includes apps, focus highlights, menus, clocks and captions. Aerials keep moving. Reduce motion disables shifting.');
     note(p,'A navigation/OK press or pointer movement restores the interface. The first press only wakes it. After 30 idle minutes, dimming also darkens the video.');
     note(p,'Applies to Aerial Home. Keep LG’s built-in OLED care enabled; these measures cannot guarantee protection against burn-in.');
+  }
+  function clockSettings(focusStyle=null) {
+    const p=panel('Clock style','clock');
+    section(p,'ON HOME AND FULL SCREEN');
+    for(const [id,style] of Object.entries(clockStyles)){
+      const b=control(p,style.name,'clock',prefs.clockStyle===id?'Selected':style.detail,()=>{prefs.clockStyle=id;save();clockSettings(id);});
+      b.classList.toggle('selected',prefs.clockStyle===id);b.setAttribute('aria-pressed',String(prefs.clockStyle===id));b.dataset.clockChoice=id;
+      if(id===focusStyle)queueMicrotask(()=>b.focus());
+    }
+    section(p,'DISPLAY');
+    const format=control(p,'Time format','clock',{'auto':'System','12':'12-hour','24':'24-hour'}[prefs.clockFormat],()=>{const choices=['auto','12','24'];prefs.clockFormat=choices[(choices.indexOf(prefs.clockFormat)+1)%choices.length];save();clockSettings('format');});
+    const date=control(p,'Show date','picture',prefs.clockDate?'On':'Off',()=>{prefs.clockDate=!prefs.clockDate;save();clockSettings('date');});
+    if(focusStyle==='format'||focusStyle==='date')queueMicrotask(()=>(focusStyle==='format'?format:date).focus());
+    control(p,'View full-screen clock','tv','Any key returns Home',()=>{closePanel();startSaver(true);});
+    note(p,'Styles apply to Home and the full-screen clock. OLED care still shifts, fades and hides every clock. No seconds animation or live backdrop blur.');
   }
   function aerialSettings() {
     const p=panel('Aerials','aerials');
@@ -410,7 +439,7 @@
   document.addEventListener('visibilitychange',()=>{setOledDimmed(false);oledPreview=null;wakeKey=null;suppressWakeClick=false;lastActivity=Date.now();homeVisit++;homeReadyAt=null;syncOledProtection();if(document.hidden){videoSuspended=true;stopVideo();}else{if(homeDirty)render(focusId,false);paintHome();if(videoSuspended){videoSuspended=false;requestAerialStart(currentScene?.id || null);}clock(true);}});
   addEventListener('blur',()=>{clearTimeout(holdTimer);heldKey=null;longPress=false;wakeKey=null;suppressWakeClick=false;});
   addEventListener('pagehide',stopVideo);
-  function startSaver() { if(!prefs.aerial){toast('Enable video background in Aerials first');return;}saver=true;document.body.classList.add('saver');$('saver-caption').hidden=false;$('home').setAttribute('inert','');$('toolbar').setAttribute('inert','');document.activeElement?.blur(); }
+  function startSaver(clockOnly=false) { if(!prefs.aerial&&!clockOnly){toast('Enable video background in Aerials first');return;}saver=true;clock();document.body.classList.add('saver');$('saver-caption').hidden=false;$('home').setAttribute('inert','');$('toolbar').setAttribute('inert','');document.activeElement?.blur(); }
   function setOledDimmed(dimmed) {
     oledDimmed=dimmed;document.body.classList.toggle('oled-dimmed',dimmed);
     if(dimmed){clearTimeout(holdTimer);heldKey=null;longPress=false;}

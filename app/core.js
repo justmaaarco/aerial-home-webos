@@ -23,6 +23,9 @@
       oledDimming: typeof x.oledDimming==='boolean' ? x.oledDimming : true,
       oledProtection: typeof x.oledProtection==='boolean' ? x.oledProtection : true,
       reduceMotion: !!x.reduceMotion,
+      clockStyle: ['classic','minimal','glass','immersive'].includes(x.clockStyle) ? x.clockStyle : 'classic',
+      clockFormat: ['auto','12','24'].includes(x.clockFormat) ? x.clockFormat : 'auto',
+      clockDate: typeof x.clockDate==='boolean' ? x.clockDate : true,
       profile: typeof x.profile === 'string' ? x.profile.slice(0,32) || 'Home' : 'Home',
       order: Array.isArray(x.order) ? [...new Set(x.order.filter(v=>typeof v==='string'))] : [],
       hidden: Array.isArray(x.hidden) ? [...new Set(x.hidden.filter(v=>typeof v==='string'))] : [],
@@ -80,13 +83,29 @@
     if(index===previous)index=(index+1)%phrases[period].length;
     return {period,index,title:'Good '+(period==='night'?'evening':period)+'.',phrase:phrases[period][index]};
   }
+  let clockFormatterKey,clockFormatter,dateFormatter;
+  function clockFace(date,prefs,locale) {
+    const key=JSON.stringify([locale,prefs.clockFormat]);
+    if(key!==clockFormatterKey){
+      const options={hour:'numeric',minute:'2-digit'};
+      if(prefs.clockFormat==='12')options.hour12=true;
+      if(prefs.clockFormat==='24')options.hourCycle='h23';
+      clockFormatter=new Intl.DateTimeFormat(locale,options);
+      dateFormatter=new Intl.DateTimeFormat(locale,{weekday:'long',month:'long',day:'numeric'});clockFormatterKey=key;
+    }
+    const parts=clockFormatter.formatToParts(date);
+    const hour=parts.find(p=>p.type==='hour')?.value||'',minute=parts.find(p=>p.type==='minute')?.value||'';
+    const hourAt=parts.findIndex(p=>p.type==='hour'),minuteAt=parts.findIndex(p=>p.type==='minute');
+    const separator=parts.slice(hourAt+1,minuteAt).map(p=>p.value).join('')||':';
+    return {time:hour+separator+minute,period:parts.find(p=>p.type==='dayPeriod')?.value||'',label:clockFormatter.format(date),date:prefs.clockDate?dateFormatter.format(date):''};
+  }
   function oledState(prefs,idleMs,elapsedMs,hidden=false) {
     if(!prefs.oledProtection||hidden)return {x:0,y:0,rest:'active'};
     const offsets=[[0,0],[4,0],[4,4],[0,4],[-4,4],[-4,0],[-4,-4],[0,-4],[4,-4]];
     const [x,y]=prefs.reduceMotion?[0,0]:offsets[Math.floor(Math.max(0,elapsedMs)/60000)%offsets.length];
     return {x,y,rest:idleMs>=5*60000?'hidden':idleMs>=2*60000?'faded':'active'};
   }
-  const api={defaults,clean,visible,nextIndex,homeApps,starterFavorites,greeting,oledState};
+  const api={defaults,clean,visible,nextIndex,homeApps,starterFavorites,greeting,clockFace,oledState};
   if(typeof module!=='undefined') module.exports=api;
   root.AerialCore=api;
 })(typeof window!=='undefined'?window:globalThis);
