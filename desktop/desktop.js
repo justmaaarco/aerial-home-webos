@@ -7,6 +7,7 @@
   let prefs={clockStyle:'glass',clockFormat:'auto',clockDate:true,position:'top',shuffle:true,oledProtection:true},current=null,paused=false,generation=0,timer;
   let lastActivity=Date.now(),epoch=Date.now(),failed=new Set();
   const preview=new URLSearchParams(location.search).has('preview');
+  const showClock=window.AERIAL_DESKTOP_SCREENSAVER===true||preview;
   let restored=null,first=true,live=false,loading=false,offset=0,resumeAt=0;
   try{const saved=JSON.parse(localStorage.getItem(cycleKey)||'null');if(saved&&saved.ids===ids.join('|')&&ids.includes(saved.current)&&Array.isArray(saved.remaining)&&saved.remaining.length<=ids.length&&new Set(saved.remaining).size===saved.remaining.length&&!saved.remaining.includes(saved.current)&&saved.remaining.every(id=>ids.includes(id))){restored=saved;prefs.shuffle=saved.shuffle!==false;bag.bag=saved.remaining;bag.last=saved.current;bag.signature=ids.join('|')+prefs.shuffle;}}catch(_){}
   function remember(){if(!current)return;try{localStorage.setItem(cycleKey,JSON.stringify({ids:ids.join('|'),current:current.id,remaining:bag.bag,shuffle:prefs.shuffle,position:Math.min(7200,Math.max(0,paused||loading?resumeAt:offset+(Number(video.currentTime)||0)))}));}catch(_){} }
@@ -21,7 +22,7 @@
     document.documentElement.style.setProperty('--shift-x',state.x+'px');document.documentElement.style.setProperty('--shift-y',state.y+'px');
     remember();
   }
-  function appearance(){sanitize();document.body.dataset.style=prefs.clockStyle;document.body.dataset.position=prefs.position;lastActivity=Date.now();tick();
+  function appearance(){sanitize();$('face').hidden=!showClock;document.body.dataset.style=prefs.clockStyle;document.body.dataset.position=prefs.position;lastActivity=Date.now();tick();
     $('style-choice').value=prefs.clockStyle;$('format-choice').value=prefs.clockFormat;$('position-choice').value=prefs.position;
     $('date-choice').checked=prefs.clockDate;$('shuffle-choice').checked=prefs.shuffle;$('oled-choice').checked=prefs.oledProtection;
     if(preview)try{localStorage.setItem('aerial-desktop-v1',JSON.stringify(prefs));}catch(_){}

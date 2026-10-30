@@ -8,7 +8,9 @@ The Windows development PC uses Wallpaper Engine 2.8.42. Aerial Desktop is appli
 
 Three full-length local aerials remain available for immediate startup: Iceland Coast, Iceland Snow Caps and Bumpheads, totaling about 27 minutes. Each prepared file is verified as 3840×2160, AV1, 10-bit SDR. Their combined size is about 7.8 GiB. The local preparation cache also retains the original source files.
 
-The clock's **Clock style**, **Time format**, **Clock position**, **Show date**, **Shuffle aerials** and **OLED clock care** controls appear in Wallpaper Engine's Properties sidebar when Aerial Desktop is selected. Choices persist in the host. Glass is the desktop default; Immersive provides larger numerals. The desktop package has no app grid or HDMI controls.
+The desktop wallpaper hides the clock and date. A separate **Aerial Desktop Screensaver** package shows them, with **Clock style**, **Time format**, **Clock position**, **Show date**, **Shuffle aerials** and **OLED clock care** controls in Wallpaper Engine's Properties sidebar. Choices persist in the host. Glass is the screensaver default; Immersive provides larger numerals. Neither package has an app grid or HDMI controls.
+
+Build the clock-enabled screensaver with `node tools/build-desktop.cjs dist/aerial-screensaver --catalogue --screensaver`. Configure Wallpaper Engine's screensaver separately and select that package, retaining Aerial Desktop for the wallpaper. Both packages use the same catalogue helper. The development PC shares the existing local videos through hard links, without duplicating their storage. Browser preview (`?preview=1`) also shows the clock for customization.
 
 OLED clock care reuses the bounded minute-based shifts, two-minute fade and five-minute hide from Aerial Home. Pointer activity restores the clock and location caption. Wallpaper Engine's pause/resume callback pauses video and resets clock activity on return. These protections cover the wallpaper's own text, not Windows icons, taskbar or other apps. They cannot guarantee protection against panel wear.
 
