@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Aerial Desktop</title>
+  <link rel="stylesheet" href="desktop.css">
+</head>
+<body>
+  <video id="aerial" autoplay muted playsinline preload="metadata"></video>
+  <div id="shade"></div>
+  <div id="clock-plane">
+    <div id="face">
+      <time id="clock"><span id="digits"></span><span id="period"></span></time>
+      <div id="date"></div>
+    </div>
+    <div id="place"></div><div id="status" role="status"></div>
+  </div>
+  <details id="controls" hidden>
+    <summary>Customize Aerial Desktop</summary>
+    <label>Clock style<select id="style-choice"><option value="classic">Classic</option><option value="minimal">Minimal</option><option value="glass">Liquid Glass</option><option value="immersive">Immersive</option></select></label>
+    <label>Time format<select id="format-choice"><option value="auto">System</option><option value="12">12-hour</option><option value="24">24-hour</option></select></label>
+    <label>Position<select id="position-choice"><option value="top">Upper center</option><option value="center">Center</option><option value="right">Upper right</option></select></label>
+    <label><input id="date-choice" type="checkbox" checked> Show date</label>
+    <label><input id="shuffle-choice" type="checkbox" checked> Shuffle aerials</label>
+    <label><input id="oled-choice" type="checkbox" checked> OLED clock care</label>
+    <button id="next" type="button">Next aerial</button>
+    <p>Local preview. In Wallpaper Engine use the wallpaper's Properties.</p>
+  </details>
+  <script src="core.js"></script><script src="media.js"></script>
+  <script src="playlist.js"></script><script src="desktop.js"></script>
+</body>
+</html>
