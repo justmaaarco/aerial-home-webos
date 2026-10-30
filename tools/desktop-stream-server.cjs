@@ -8,6 +8,7 @@ const scenes=new Map(scope.window.APPLE_AERIALS.scenes.filter(s=>/^[a-zA-Z0-9_-]
 const port=Number(process.env.AERIAL_DESKTOP_PORT||5194),cache=path.resolve(process.env.AERIAL_DESKTOP_CACHE||path.join(__dirname,'../cache'));
 const seed=path.resolve(process.env.AERIAL_DESKTOP_SEED||path.join(__dirname,'../wallpaper/videos'));
 const limit=4*1024**3,maxEntry=limit/2,readers=new Map(),failures=new Map();let worker=null,lastResult=null;
+const clients=new Map();
 fs.mkdirSync(cache,{recursive:true});
 const cacheFiles=()=>fs.readdirSync(cache).filter(n=>/^[a-zA-Z0-9_-]+\.webm$/.test(n)).flatMap(name=>{try{const stat=fs.lstatSync(path.join(cache,name));return stat.isFile()?[{name,stat}]:[];}catch(_){return [];}});
 function prune(reserve=0){const files=cacheFiles().sort((a,b)=>a.stat.mtimeMs-b.stat.mtimeMs);let total=files.reduce((n,f)=>n+f.stat.size,0);for(const f of files){if(total+reserve<=limit)break;if(readers.get(f.name))continue;try{fs.unlinkSync(path.join(cache,f.name));total-=f.stat.size;}catch(_){}}return total+reserve<=limit;}
@@ -24,10 +25,17 @@ function cached(res,req,file){
 const server=http.createServer((req,res)=>{
   const origin=req.headers.origin,own='http://127.0.0.1:'+port;
   if(!['127.0.0.1:'+port,'localhost:'+port].includes(req.headers.host)||origin&&!['null',own,'http://localhost:'+port].includes(origin)){json(res,403,{error:'Local wallpaper requests only'});return;}
-  res.setHeader('Access-Control-Allow-Origin',origin||'*');res.setHeader('Access-Control-Allow-Methods','GET,HEAD,OPTIONS');res.setHeader('Access-Control-Allow-Headers','Range');
-  if(req.method==='OPTIONS'){res.writeHead(204).end();return;}if(!['GET','HEAD'].includes(req.method)){json(res,405,{error:'Read-only media service'});return;}
+  res.setHeader('Access-Control-Allow-Origin',origin||'*');res.setHeader('Access-Control-Allow-Methods','GET,HEAD,POST,OPTIONS');res.setHeader('Access-Control-Allow-Headers','Range,Content-Type');
+  if(req.method==='OPTIONS'){res.writeHead(204).end();return;}
+  if(req.method==='POST'&&req.url==='/api/client'){
+    let body='';req.on('data',c=>{body+=c;if(body.length>2048)req.destroy();});req.on('end',()=>{try{const d=JSON.parse(body);if(typeof d.client!=='string'||!/^[a-z0-9-]{1,40}$/.test(d.client)||!['selected','properties'].includes(d.event)||!/^(?:[a-f0-9]{12}|source)$/.test(d.build)||d.scene!==null&&!scenes.has(d.scene)||![d.nextRequests,d.propertyEvents].every(n=>Number.isSafeInteger(n)&&n>=0&&n<=1000000000))throw Error('Invalid status');
+      if(!clients.has(d.client)&&clients.size>=8)clients.delete(clients.keys().next().value);
+      clients.set(d.client,{client:d.client,event:d.event,build:String(d.build).slice(0,20),scene:d.scene,paused:d.paused===true,loading:d.loading===true,nextRequests:d.nextRequests,propertyEvents:d.propertyEvents,nextControl:d.nextControl===true,updatedAt:Date.now()});json(res,200,{ok:true});
+    }catch(_){json(res,400,{error:'Invalid client status'});}});return;
+  }
+  if(!['GET','HEAD'].includes(req.method)){json(res,405,{error:'Read-only media service'});return;}
   let u;try{u=new URL(req.url,own);}catch(_){json(res,400,{error:'Invalid request'});return;}
-  if(u.pathname==='/api/status'){const files=cacheFiles();json(res,200,{service:'aerial-desktop-catalogue',schema:1,catalogue:scenes.size,cacheBytes:files.reduce((n,f)=>n+f.stat.size,0),cacheLimitBytes:limit,worker:worker?{id:worker.id,title:worker.title}:null,lastResult});return;}
+  if(u.pathname==='/api/status'){const files=cacheFiles();json(res,200,{service:'aerial-desktop-catalogue',schema:1,catalogue:scenes.size,cacheBytes:files.reduce((n,f)=>n+f.stat.size,0),cacheLimitBytes:limit,worker:worker?{id:worker.id,title:worker.title}:null,lastResult,clients:[...clients.values()]});return;}
   const match=/^\/video\/([a-zA-Z0-9_-]+)\.webm$/.exec(u.pathname),scene=match&&scenes.get(match[1]);
   const info=/^\/api\/info\/([a-zA-Z0-9_-]+)$/.exec(u.pathname);
   if(info&&scenes.has(info[1])){let ready=false;for(const dir of [seed,cache])try{const stat=fs.lstatSync(path.join(dir,info[1]+'.webm'));if(stat.isFile()&&stat.size>0)ready=true;}catch(_){}json(res,200,{cached:ready,busy:!!worker});return;}

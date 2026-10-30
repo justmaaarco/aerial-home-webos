@@ -35,10 +35,12 @@ test('desktop full-clip transitions shuffle without immediate repeats and suppor
 test('a complete catalogue cycle survives a failed URL and reload without repeating watched entries',()=>{
   const all=Array.from({length:216},(_,i)=>({id:'clip-'+i,title:'Clip '+i,file:'videos/clip-'+i+'.webm'})),stored=new Map(),localStorage={getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v)};
   let d=desktop(all,{localStorage}),seen=new Set();
-  for(let i=0;i<216;i++){
+  for(let i=0;seen.size<216;i++){
+    assert.ok(i<216,'cycle did not complete');
     const video=d.node('aerial');assert.ok(!seen.has(video.src),'repeated before cycle completion');seen.add(video.src);
+    if(seen.size===216)break;
     if(i===7)video.onerror();else video.onended();
-    if(i===99){const saved=JSON.parse(stored.get('aerial-desktop-cycle-v2'));assert.equal(saved.remaining.length,115);d=desktop(all,{localStorage});}
+    if(i===99){const saved=JSON.parse(stored.get('aerial-desktop-cycle-v2'));assert.equal(saved.remaining.length,115);assert.ok(!seen.has(video.src));seen.add(video.src);d=desktop(all,{localStorage});assert.notEqual(d.node('aerial').src,video.src);assert.ok(!seen.has(d.node('aerial').src));}
   }
   assert.equal(seen.size,216);
 });
@@ -48,4 +50,37 @@ test('catalogue accepts only its fixed loopback ID endpoint and cancels GPU stre
   await new Promise(resolve=>setImmediate(resolve));assert.equal(d.node('aerial').src,item.file);
   d.node('aerial').currentTime=23;d.node('aerial').onplaying();d.context.wallpaperPropertyListener.setPaused(true);assert.equal(d.node('aerial').src,'');
   d.context.wallpaperPropertyListener.setPaused(false);await new Promise(resolve=>setImmediate(resolve));assert.equal(d.node('aerial').src,item.file+'?t=23');
+});
+test('next control skips once on each toggle, never on initial properties or unchanged values',()=>{
+  const all=Array.from({length:5},(_,i)=>({id:'next-'+i,title:'Next '+i,file:'videos/next-'+i+'.webm'}));
+  const d=desktop(all),host=d.context.wallpaperPropertyListener,video=d.node('aerial'),first=video.src;
+  host.applyUserProperties({nextaerial:{value:true},shuffle:{value:true},oledcare:{value:true}});assert.equal(video.src,first);
+  host.applyUserProperties({nextaerial:{value:false}});const second=video.src;assert.notEqual(second,first);
+  host.applyUserProperties({nextaerial:{value:false},oledcare:{value:false}});assert.equal(video.src,second);
+  host.setPaused(true);host.applyUserProperties({nextaerial:{value:true}});assert.equal(video.src,'');
+  host.setPaused(false);assert.notEqual(video.src,second);assert.equal(video.playing,true);
+});
+test('catalogue startup samples the full shuffle rather than preferring a local seed',()=>{
+  const all=[{id:'seed',title:'Seed',local:true,file:'videos/seed.webm'},{id:'other',title:'Other',file:'videos/other.webm'}];
+  // Fisher-Yates with 0 puts the second item first; an explicit seed preference would override it.
+  class FixedBag extends media.ShuffleBag{constructor(){super(()=>0);}}
+  const d=desktop(all,{AERIAL_DESKTOP_CATALOGUE_MODE:true,AerialMedia:{...media,ShuffleBag:FixedBag}});
+  assert.equal(d.node('aerial').src,'videos/other.webm');
+});
+test('skipping an online aerial detaches its encoder stream before querying the next source',async()=>{
+  const all=['stream-one','stream-two'].map(id=>({id,title:id,streaming:true,file:'http://127.0.0.1:5194/video/'+id+'.webm'}));
+  let d;const observed=[];
+  d=desktop(all,{AERIAL_DESKTOP_CATALOGUE_MODE:true,fetch:async url=>{if(url.includes('/api/info/'))observed.push(d?.node('aerial').src||'');return {ok:true,json:async()=>({cached:false,busy:false})};}});
+  await new Promise(resolve=>setImmediate(resolve));const video=d.node('aerial'),first=video.src;
+  d.context.wallpaperPropertyListener.applyUserProperties({nextaerial:{value:false}});
+  d.context.wallpaperPropertyListener.applyUserProperties({nextaerial:{value:true}});
+  assert.equal(video.src,'');await new Promise(resolve=>setImmediate(resolve));
+  assert.notEqual(video.src,first);assert.deepEqual(observed,['','']);
+});
+test('the first Next click works when initial host properties omit Next or no initial batch arrives',()=>{
+  for(const initial of [null,{shuffle:{value:true},oledcare:{value:true}}]){
+    const d=desktop(scenes),host=d.context.wallpaperPropertyListener,first=d.node('aerial').src;
+    if(initial)host.applyUserProperties(initial);
+    host.applyUserProperties({nextaerial:{value:true}});assert.notEqual(d.node('aerial').src,first);
+  }
 });

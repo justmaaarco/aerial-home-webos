@@ -21,5 +21,11 @@ test('catalogue helper is loopback-only, read-only, range bounded and never acce
   assert.equal((await fetch(base+'/video/not-a-catalogue-id.webm?url=https://example.com/')).status,404);
   assert.equal((await fetch(base+'/api/status',{method:'POST'})).status,405);
   assert.equal((await fetch(base+'/api/status',{headers:{Origin:'https://example.com'}})).status,403);
+  const post=data=>fetch(base+'/api/client',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+  const state={client:'test',event:'properties',build:'source',scene:scenes[0].id,paused:false,loading:false,nextRequests:1,propertyEvents:2,nextControl:true};
+  assert.equal((await post({...state,scene:'not-a-catalogue-id'})).status,400);
+  assert.equal((await post({...state,nextRequests:-1})).status,400);
+  for(let n=0;n<10;n++)assert.equal((await post({...state,client:'test-'+n})).status,200);
+  const clientStatus=await(await fetch(base+'/api/status')).json();assert.equal(clientStatus.clients.length,8);assert.equal(clientStatus.clients.at(-1).nextRequests,1);
   assert.equal((await (await fetch(base+'/api/status')).json()).worker,null);
 });

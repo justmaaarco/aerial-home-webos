@@ -11,14 +11,17 @@ fs.copyFileSync(path.join(root,'LICENSE'),path.join(destination,'LICENSE'));
 const combo=(text,value,options,order)=>({type:'combo',text,value,options:options.map(([value,label])=>({value,label})),order});
 const bool=(text,value,order)=>({type:'bool',text,value,order});
 const properties={
+  nextaerial:bool('Next aerial (toggle to skip)',false,0),
   ...(screensaver?{
-  clockstyle:combo('Clock style','glass',[['classic','Classic'],['minimal','Minimal'],['glass','Liquid Glass'],['immersive','Immersive']],0),
-  clockformat:combo('Time format','auto',[['auto','System'],['12','12-hour'],['24','24-hour']],1),
-  clockposition:combo('Clock position','top',[['top','Upper center'],['center','Center'],['right','Upper right']],2),
-  showdate:bool('Show date',true,3)}:{}),shuffle:bool('Shuffle aerials',true,4),oledcare:bool(screensaver?'OLED clock care':'OLED text care',true,5)
+  clockstyle:combo('Clock style','glass',[['classic','Classic'],['minimal','Minimal'],['glass','Liquid Glass'],['immersive','Immersive']],1),
+  clockformat:combo('Time format','auto',[['auto','System'],['12','12-hour'],['24','24-hour']],2),
+  clockposition:combo('Clock position','top',[['top','Upper center'],['center','Center'],['right','Upper right']],3),
+  showdate:bool('Show date',true,4)}:{}),shuffle:bool('Shuffle aerials',true,5),oledcare:bool(screensaver?'OLED clock care':'OLED text care',true,6)
 };
 fs.writeFileSync(path.join(destination,'project.json'),JSON.stringify({title:screensaver?'Aerial Desktop Screensaver':'Aerial Desktop',description:(fullCatalogue?'Catalogue aerials with on-demand playback':'Local aerials')+(screensaver?' and selectable clocks.':' without a desktop clock.')+' Independent open-source desktop companion to Aerial Home.',type:'web',file:'index.html',visibility:'private',version:1,general:{properties,supportsaudioprocessing:false}},null,2)+'\n');
 fs.writeFileSync(path.join(destination,'mode.js'),'window.AERIAL_DESKTOP_SCREENSAVER='+screensaver+';\n');
+const crypto=require('node:crypto'),revision=crypto.createHash('sha256').update(fs.readFileSync(path.join(root,'desktop/desktop.js'))).digest('hex').slice(0,12);
+fs.appendFileSync(path.join(destination,'mode.js'),'window.AERIAL_DESKTOP_BUILD='+JSON.stringify(revision)+';\n');
 if(!fs.existsSync(path.join(destination,'playlist.js')))fs.writeFileSync(path.join(destination,'playlist.js'),'window.AERIAL_DESKTOP_PLAYLIST=[];\n');
 if(fullCatalogue){
   const vm=require('node:vm'),scope={window:{}};vm.runInNewContext(fs.readFileSync(path.join(root,'app/catalogue.js'),'utf8'),scope);
@@ -26,3 +29,5 @@ if(fullCatalogue){
   fs.writeFileSync(path.join(destination,'playlist.js'),'window.AERIAL_DESKTOP_CATALOGUE_MODE=true;window.AERIAL_DESKTOP_PLAYLIST='+JSON.stringify(list)+';\n');
 }
 fs.mkdirSync(path.join(destination,'videos'),{recursive:true});console.log('Built '+destination);
+const html=fs.readFileSync(path.join(root,'desktop/index.html'),'utf8').replace(/(src|href)="([^"?]+\.(?:js|css))"/g,(_,attr,file)=>attr+'="'+file+'?v='+crypto.createHash('sha256').update(fs.readFileSync(path.join(destination,file))).digest('hex').slice(0,12)+'"');
+fs.writeFileSync(path.join(destination,'index.html'),html);
