@@ -11,6 +11,17 @@ const limit=4*1024**3,maxEntry=limit/2,readers=new Map(),failures=new Map();let 
 const clients=new Map();
 fs.mkdirSync(cache,{recursive:true});
 const cacheFiles=()=>fs.readdirSync(cache).filter(n=>/^[a-zA-Z0-9_-]+\.webm$/.test(n)).flatMap(name=>{try{const stat=fs.lstatSync(path.join(cache,name));return stat.isFile()?[{name,stat}]:[];}catch(_){return [];}});
+function readyIds(){
+  const ids=new Set();
+  for(const dir of [seed,cache]){
+    let names=[];try{names=fs.readdirSync(dir);}catch(_){}
+    for(const name of names){
+      const id=name.replace(/\.webm$/,'');if(name!==id+'.webm'||!scenes.has(id))continue;
+      try{const stat=fs.lstatSync(path.join(dir,name));if(stat.isFile()&&stat.size>0)ids.add(id);}catch(_){}
+    }
+  }
+  return [...ids];
+}
 function prune(reserve=0){const files=cacheFiles().sort((a,b)=>a.stat.mtimeMs-b.stat.mtimeMs);let total=files.reduce((n,f)=>n+f.stat.size,0);for(const f of files){if(total+reserve<=limit)break;if(readers.get(f.name))continue;try{fs.unlinkSync(path.join(cache,f.name));total-=f.stat.size;}catch(_){}}return total+reserve<=limit;}
 // Only this service's known temporary files are eligible for cleanup after an interrupted run.
 for(const name of fs.readdirSync(cache))if(/^[a-zA-Z0-9_-]+\.webm\.(part|index)$/.test(name)&&fs.lstatSync(path.join(cache,name)).isFile())fs.unlinkSync(path.join(cache,name));
@@ -38,7 +49,7 @@ const server=http.createServer((req,res)=>{
   if(u.pathname==='/api/status'){const files=cacheFiles();json(res,200,{service:'aerial-desktop-catalogue',schema:1,catalogue:scenes.size,cacheBytes:files.reduce((n,f)=>n+f.stat.size,0),cacheLimitBytes:limit,worker:worker?{id:worker.id,title:worker.title}:null,lastResult,clients:[...clients.values()]});return;}
   const match=/^\/video\/([a-zA-Z0-9_-]+)\.webm$/.exec(u.pathname),scene=match&&scenes.get(match[1]);
   const info=/^\/api\/info\/([a-zA-Z0-9_-]+)$/.exec(u.pathname);
-  if(info&&scenes.has(info[1])){let ready=false;for(const dir of [seed,cache])try{const stat=fs.lstatSync(path.join(dir,info[1]+'.webm'));if(stat.isFile()&&stat.size>0)ready=true;}catch(_){}json(res,200,{cached:ready,busy:!!worker});return;}
+  if(info&&scenes.has(info[1])){const ready=readyIds();json(res,200,{cached:ready.includes(info[1]),busy:!!worker,ready});return;}
   if(!scene){json(res,404,{error:'Unknown catalogue ID'});return;}
   for(const dir of [seed,cache]){const file=path.join(dir,scene.id+'.webm');try{const stat=fs.lstatSync(file);if(stat.isFile()&&stat.size>0){cached(res,req,file);return;}}catch(_){}}
   if(req.method==='HEAD'){res.writeHead(200,{'Content-Type':'video/webm'}).end();return;}

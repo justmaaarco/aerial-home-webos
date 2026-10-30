@@ -9,6 +9,7 @@
   const preview=new URLSearchParams(location.search).has('preview');
   const showClock=window.AERIAL_DESKTOP_SCREENSAVER===true||preview;
   let live=false,loading=false,offset=0,resumeAt=0,nextControl=false,propertiesReady=false,nextRequests=0,propertyEvents=0;
+  let hostPaused=false,hidden=false,request=null,requestTimer,lastProgress=Date.now(),lastTime=0,recoveries=0;
   const client=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,10);
   function report(event){if(!catalogue||typeof fetch!=='function')return;fetch('http://127.0.0.1:5194/api/client',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({client,event,build:window.AERIAL_DESKTOP_BUILD||'source',scene:current?.id||null,paused,loading,nextRequests,propertyEvents,nextControl})}).catch(()=>{});}
   try{const saved=JSON.parse(localStorage.getItem(cycleKey)||'null');if(saved&&saved.ids===ids.join('|')&&ids.includes(saved.current)&&Array.isArray(saved.remaining)&&saved.remaining.length<=ids.length&&new Set(saved.remaining).size===saved.remaining.length&&!saved.remaining.includes(saved.current)&&saved.remaining.every(id=>ids.includes(id))){prefs.shuffle=saved.shuffle!==false;bag.bag=saved.remaining;bag.last=saved.current;bag.signature=ids.join('|')+prefs.shuffle;}}catch(_){}
@@ -30,23 +31,35 @@
     if(preview)try{localStorage.setItem('aerial-desktop-v1',JSON.stringify(prefs));}catch(_){}
   }
   async function start(scene,position=0){
-    clearTimeout(timer);const visit=++generation;resumeAt=position;offset=0;live=false;loading=true;
+    cancel();const visit=++generation;resumeAt=position;offset=0;live=false;loading=true;
     if(paused)return;
     let source=scene.local?'videos/'+scene.id+'.webm':scene.file;
     if(scene.streaming&&!scene.local){
       text('status','Preparing the next aerial…');
-      try{const response=await fetch('http://127.0.0.1:5194/api/info/'+scene.id);if(!response.ok)throw Error('Media service unavailable');const info=await response.json();if(visit!==generation||paused)return;if(info.busy&&!info.cached){timer=setTimeout(()=>start(scene,position),1500);return;}live=!info.cached;offset=live?position:0;if(live&&position)source+='?t='+position;}
-      catch(_){if(visit===generation&&!paused){text('status','Waiting for aerials…');timer=setTimeout(()=>start(scene,position),5000);}return;}
+      request=new AbortController();requestTimer=setTimeout(()=>request?.abort(),8000);
+      try{const response=await fetch('http://127.0.0.1:5194/api/info/'+scene.id,{signal:request.signal});if(!response.ok)throw Error('Media service unavailable');const info=await response.json();if(visit!==generation||paused)return;clearTimeout(requestTimer);request=null;if(info.busy&&!info.cached){if(readyFallback(info.ready))return;text('status','Another display is preparing an aerial…');timer=setTimeout(()=>start(scene,position),1500);return;}live=!info.cached;offset=live?position:0;if(live&&position)source+='?t='+position;}
+      catch(_){if(visit===generation&&!paused){clearTimeout(requestTimer);request=null;if(readyFallback([]))return;text('status','Waiting for aerials…');timer=setTimeout(()=>start(scene,position),5000);}return;}
     }
     if(visit!==generation||paused)return;
     video.onloadedmetadata=()=>{if(visit===generation&&!live&&position>0)try{video.currentTime=Number.isFinite(video.duration)?Math.min(position,Math.max(0,video.duration-0.1)):position;}catch(_){} };
     video.src=source;video.muted=true;video.loop=false;text('place',scene.title);text('status',live?'Preparing the next aerial…':'');
     timer=setTimeout(()=>{if(visit===generation){failed.add(scene.id);next();}},live?90000:20000);
-    video.play().catch(()=>{if(visit===generation){failed.add(scene.id);next();}});
+    video.play().catch(()=>{if(visit===generation&&!paused){failed.add(scene.id);next();}});
+  }
+  function cancel(){clearTimeout(timer);clearTimeout(requestTimer);request?.abort();request=null;generation++;}
+  function readyFallback(ready=[]){
+    // Defer the blocked scene, retaining its place in the unplayed cycle. Cached
+    // scenes can repeat if every currently ready scene has already been watched.
+    const available=new Set(Array.isArray(ready)?ready:[]),canPlay=s=>s.id!==current?.id&&!failed.has(s.id)&&(s.local||available.has(s.id));
+    const scene=bag.bag.map(id=>scenes.find(s=>s.id===id)).find(s=>s&&canPlay(s))||scenes.find(canPlay);
+    if(!scene)return false;
+    if(prefs.shuffle&&current&&!bag.bag.includes(current.id))bag.bag.push(current.id);
+    bag.bag=bag.bag.filter(id=>id!==scene.id);bag.last=scene.id;
+    current=scene;recoveries=0;start(scene);remember();report('selected');return true;
   }
   function next(){
     // Release the previous stream before requesting another: the helper has one encoder.
-    clearTimeout(timer);generation++;video.pause();video.removeAttribute('src');video.load();
+    cancel();recoveries=0;video.pause();video.removeAttribute('src');video.load();
     if(failed.size>=scenes.length){current=null;generation++;text('status',scenes.length?(catalogue?'No aerial is available right now. Retrying shortly.':'No compatible local aerial could play.'):'Add local aerials with the preparation tool.');video.removeAttribute('src');video.load();if(catalogue)timer=setTimeout(()=>{failed.clear();next();},60000);return;}
     // Keep the catalogue signature stable when a URL fails: changing it would restart the shuffle bag.
     if(prefs.shuffle&&bag.signature&&bag.bag.length===0||!prefs.shuffle&&bag.last===ids[ids.length-1])failed.clear();
@@ -54,8 +67,24 @@
     const scene=scenes.find(s=>s.id===id);if(!scene)return;
     current=scene;resumeAt=0;offset=0;start(scene);remember();report('selected');
   }
-  video.onplaying=()=>{clearTimeout(timer);loading=false;text('status','');remember();report('selected');};video.onended=next;video.onerror=()=>{if(current&&!paused&&video.getAttribute('src')){failed.add(current.id);next();}};
-  function pause(value){if(!!value===paused)return;if(!paused&&!loading)resumeAt=offset+(Number(video.currentTime)||0);paused=!!value;clearTimeout(timer);if(paused){remember();video.pause();if(current?.streaming&&!current.local){generation++;video.removeAttribute('src');video.load();}}else{lastActivity=Date.now();if(current&&!video.getAttribute('src'))start(current,resumeAt);else if(video.getAttribute('src'))video.play().catch(()=>{});tick();}}
+  video.onplaying=()=>{if(paused||!video.getAttribute('src'))return;clearTimeout(timer);loading=false;lastProgress=Date.now();lastTime=Number(video.currentTime)||0;text('status','');remember();report('selected');};video.onended=()=>{if(!paused)next();};video.onerror=()=>{if(current&&!paused&&video.getAttribute('src')){failed.add(current.id);next();}};
+  function pause(value){
+    if(!!value===paused)return;
+    if(!paused&&!loading)resumeAt=offset+(Number(video.currentTime)||0);
+    paused=!!value;cancel();
+    if(paused){remember();video.pause();video.removeAttribute('src');video.load();}
+    else{lastActivity=Date.now();recoveries=0;if(current)start(current,resumeAt);else next();tick();}
+    report('selected');
+  }
+  function health(){
+    if(paused||loading||!current||!video.getAttribute('src'))return;
+    const time=Number(video.currentTime)||0;
+    if(Math.abs(time-lastTime)>0.05){lastTime=time;lastProgress=Date.now();recoveries=0;return;}
+    if(Date.now()-lastProgress<20000)return;
+    const position=offset+time;video.pause();video.removeAttribute('src');video.load();
+    if(recoveries++===0)start(current,position);else{failed.add(current.id);next();}
+    report('selected');
+  }
   window.wallpaperPropertyListener={
     applyUserProperties(properties){
       const initial=!propertiesReady;propertiesReady=true;propertyEvents++;
@@ -68,14 +97,14 @@
       }
       report('properties');
     },
-    setPaused:pause
+    setPaused(value){hostPaused=!!value;pause(hostPaused||hidden);}
   };
-  document.addEventListener('visibilitychange',()=>pause(document.hidden));
-  addEventListener('pagehide',()=>{remember();generation++;video.removeAttribute('src');video.load();});
+  document.addEventListener('visibilitychange',()=>{hidden=document.hidden;pause(hostPaused||hidden);});
+  addEventListener('pagehide',()=>{remember();cancel();video.removeAttribute('src');video.load();});
   addEventListener('mousemove',()=>{lastActivity=Date.now();if(document.body.dataset.rest!=='active')tick();});
   addEventListener('keydown',()=>{lastActivity=Date.now();tick();});
   for(const [id,key,checkbox] of [['style-choice','clockStyle'],['format-choice','clockFormat'],['position-choice','position'],['date-choice','clockDate',true],['shuffle-choice','shuffle',true],['oled-choice','oledProtection',true]]){
     $(id).onchange=()=>{prefs[key]=checkbox?$(id).checked:$(id).value;appearance();};
   }
-  $('next').onclick=next;appearance();setInterval(tick,10000);next();
+  $('next').onclick=next;appearance();setInterval(tick,10000);setInterval(health,5000);next();
 })();

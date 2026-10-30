@@ -15,7 +15,7 @@ test('catalogue helper is loopback-only, read-only, range bounded and never acce
   await new Promise((resolve,reject)=>{child.stdout.once('data',resolve);child.once('error',reject);child.once('exit',code=>{if(code)reject(Error('Helper exited '+code));});});
   const base='http://127.0.0.1:'+port;
   assert.equal((await (await fetch(base+'/api/status')).json()).catalogue,216);
-  assert.equal((await (await fetch(base+'/api/info/'+scenes[0].id)).json()).cached,true);
+  const info=await (await fetch(base+'/api/info/'+scenes[0].id)).json();assert.equal(info.cached,true);assert.deepEqual(info.ready,[scenes[0].id]);
   const range=await fetch(base+'/video/'+scenes[0].id+'.webm',{headers:{Range:'bytes=1-3'}});assert.equal(range.status,206);assert.equal((await range.arrayBuffer()).byteLength,3);
   assert.equal((await fetch(base+'/video/'+scenes[0].id+'.webm',{headers:{Range:'bytes=99-100'}})).status,416);
   assert.equal((await fetch(base+'/video/not-a-catalogue-id.webm?url=https://example.com/')).status,404);

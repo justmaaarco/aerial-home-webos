@@ -5,9 +5,9 @@ function desktop(playlist,options={}){
   const nodes=new Map(),timers=[],events={},intervals=[];let now=0;
   const node=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',hidden:false,dataset:{},style:{setProperty(k,v){this[k]=v;}},attributes:{},getAttribute(k){return this.attributes[k]??null;},setAttribute(k,v){this.attributes[k]=v;},removeAttribute(k){delete this.attributes[k];},set src(v){this.attributes.src=v;},get src(){return this.attributes.src||'';},play(){this.playing=true;return Promise.resolve();},pause(){this.playing=false;},load(){}});return nodes.get(id);};
   const document={getElementById:node,body:node('body'),documentElement:node('root'),addEventListener(k,fn){events[k]=fn;},hidden:false};
-  const context={document,AerialCore:core,AerialMedia:media,AERIAL_DESKTOP_PLAYLIST:playlist,location:{search:''},URLSearchParams,Date:class extends Date{static now(){return now;}},setTimeout(fn){timers.push(fn);return fn;},clearTimeout(){},setInterval(fn){intervals.push(fn);},addEventListener(k,fn){events[k]=fn;}};
+  const context={document,AerialCore:core,AerialMedia:media,AERIAL_DESKTOP_PLAYLIST:playlist,location:{search:''},URLSearchParams,AbortController,Date:class extends Date{static now(){return now;}},setTimeout(fn,delay){timers.push({fn,delay});return fn;},clearTimeout(fn){const entry=timers.find(t=>t.fn===fn);if(entry)entry.cancelled=true;},setInterval(fn){intervals.push(fn);},addEventListener(k,fn){events[k]=fn;}};
   Object.assign(context,options);context.window=context;vm.runInNewContext(fs.readFileSync(require.resolve('../desktop/desktop.js'),'utf8'),context);
-  return {context,node,events,advance:ms=>{now+=ms;intervals.forEach(fn=>fn());}};
+  return {context,node,events,advance:ms=>{now+=ms;intervals.forEach(fn=>fn());},fire:delay=>{for(const t of timers.filter(t=>!t.cancelled&&t.delay===delay)){t.cancelled=true;t.fn();}}};
 }
 const scenes=[{id:'one',title:'First',file:'videos/one.webm'},{id:'two',title:'Second',file:'videos/two.webm'}];
 test('desktop host properties validate clocks independently, pause playback and retain OLED care',()=>{
@@ -83,4 +83,43 @@ test('the first Next click works when initial host properties omit Next or no in
     if(initial)host.applyUserProperties(initial);
     host.applyUserProperties({nextaerial:{value:true}});assert.notEqual(d.node('aerial').src,first);
   }
+});
+test('returning from a game reloads the decoder at the saved position and restores its loading timeout',()=>{
+  const d=desktop(scenes),host=d.context.wallpaperPropertyListener,video=d.node('aerial'),first=video.src;
+  video.currentTime=42;video.onplaying();host.setPaused(true);assert.equal(video.src,'');
+  d.advance(3*3600000);host.setPaused(false);assert.equal(video.src,first);
+  video.duration=100;video.onloadedmetadata();assert.equal(video.currentTime,42);
+  // A decoder that never reaches onplaying must not wait forever after resume.
+  d.fire(20000);assert.notEqual(video.src,first);
+});
+test('host pause and document visibility independently keep playback stopped',()=>{
+  const d=desktop(scenes),host=d.context.wallpaperPropertyListener,video=d.node('aerial');video.onplaying();
+  host.setPaused(true);d.context.document.hidden=true;d.events.visibilitychange();
+  d.context.document.hidden=false;d.events.visibilitychange();assert.equal(video.src,'');
+  host.setPaused(false);assert.ok(video.src);
+  d.context.document.hidden=true;d.events.visibilitychange();host.setPaused(false);assert.equal(video.src,'');
+  d.context.document.hidden=false;d.events.visibilitychange();assert.ok(video.src);
+});
+test('a frozen playing decoder is retried once, then skipped if it still makes no progress',()=>{
+  const d=desktop(scenes),video=d.node('aerial'),first=video.src;
+  video.currentTime=12;video.onplaying();d.advance(20000);
+  assert.equal(video.src,first);video.onloadedmetadata();assert.equal(video.currentTime,12);video.onplaying();
+  d.advance(20000);assert.notEqual(video.src,first);
+});
+test('a busy encoder uses a ready aerial while preserving the deferred shuffled scene',async()=>{
+  const all=['online','ready'].map(id=>({id,title:id,streaming:true,file:'http://127.0.0.1:5194/video/'+id+'.webm'}));
+  class FixedBag extends media.ShuffleBag{constructor(){super(()=>0.99);}}
+  const stored=new Map(),d=desktop(all,{AERIAL_DESKTOP_CATALOGUE_MODE:true,AerialMedia:{...media,ShuffleBag:FixedBag},localStorage:{getItem:k=>stored.get(k)||null,setItem:(k,v)=>stored.set(k,v)},fetch:async url=>({ok:true,json:async()=>({cached:url.endsWith('/ready'),busy:true,ready:['ready','arbitrary-url']})})});
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(d.node('aerial').src,all[1].file);
+  assert.deepEqual(JSON.parse(stored.get('aerial-desktop-cycle-v2')).remaining,['online']);
+});
+test('hung info requests time out to a local fallback and are cancelled when gaming pauses playback',async()=>{
+  const all=[{id:'online',title:'Online',streaming:true,file:'http://127.0.0.1:5194/video/online.webm'},{id:'local',title:'Local',local:true,file:'videos/local.webm'}];
+  class FixedBag extends media.ShuffleBag{constructor(){super(()=>0.99);}}
+  let signal;
+  const d=desktop(all,{AERIAL_DESKTOP_CATALOGUE_MODE:true,AerialMedia:{...media,ShuffleBag:FixedBag},fetch:(url,options)=>url.includes('/api/info/')?new Promise((_,reject)=>{signal=options.signal;signal.addEventListener('abort',()=>reject(Error('aborted')));}):Promise.resolve({ok:true})});
+  d.fire(8000);await new Promise(resolve=>setImmediate(resolve));assert.equal(d.node('aerial').src,'videos/local.webm');
+  d.node('aerial').onended();assert.equal(signal.aborted,false);
+  d.context.wallpaperPropertyListener.setPaused(true);assert.equal(signal.aborted,true);
+  await new Promise(resolve=>setImmediate(resolve));assert.equal(d.node('aerial').src,'');
 });
