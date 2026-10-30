@@ -42,7 +42,7 @@ Apple Account, Siri, FaceTime, HomeKit, AirPlay routing, Apple Music Sing and tv
 
 ## Preview and build
 
-For a Windows desktop wallpaper and screensaver with the same clock styles, see the separate [Aerial Desktop companion](docs/desktop.md). It uses Wallpaper Engine and locally prepared video files; it is separate from the TV package.
+For a Windows desktop wallpaper and screensaver with the same clock styles, see the separate [Aerial Desktop companion](docs/desktop.md). It uses Wallpaper Engine, supports local videos and an optional full-catalogue cycle with on-demand playback and a bounded cache, and is separate from the TV package.
 
 Requires Node.js 22 or newer. There are no package dependencies or installation steps.
 

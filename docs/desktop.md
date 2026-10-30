@@ -4,17 +4,38 @@ The separate **Aerial Desktop** package brings Classic, Minimal, Liquid Glass an
 
 ## Current development setup
 
-The Windows development PC uses Wallpaper Engine 2.8.42. Aerial Desktop is applied to its primary display. Three full-length local aerials are prepared: Iceland Coast, Iceland Snow Caps and Bumpheads, totaling about 27 minutes. Each prepared file is verified as 3840×2160, AV1, 10-bit SDR. Their combined size is about 7.8 GiB. The local preparation cache also retains the original source files.
+The Windows development PC uses Wallpaper Engine 2.8.42. Aerial Desktop is applied to its primary display. The full-catalogue mode covers all 216 entries in the repository's eight-manifest Apple snapshot. Each entry is attempted once per shuffled cycle; removed or unplayable Apple files are skipped. Shuffle order and playback position are saved when browser storage is available. A failed URL does not reset the cycle. Turning Shuffle off uses catalogue order.
+
+Three full-length local aerials remain available for immediate startup: Iceland Coast, Iceland Snow Caps and Bumpheads, totaling about 27 minutes. Each prepared file is verified as 3840×2160, AV1, 10-bit SDR. Their combined size is about 7.8 GiB. The local preparation cache also retains the original source files.
 
 The clock's **Clock style**, **Time format**, **Clock position**, **Show date**, **Shuffle aerials** and **OLED clock care** controls appear in Wallpaper Engine's Properties sidebar when Aerial Desktop is selected. Choices persist in the host. Glass is the desktop default; Immersive provides larger numerals. The desktop package has no app grid or HDMI controls.
 
 OLED clock care reuses the bounded minute-based shifts, two-minute fade and five-minute hide from Aerial Home. Pointer activity restores the clock and location caption. Wallpaper Engine's pause/resume callback pauses video and resets clock activity on return. These protections cover the wallpaper's own text, not Windows icons, taskbar or other apps. They cannot guarantee protection against panel wear.
 
-The existing host rules pause wallpapers for fullscreen and maximized applications, and startup is enabled. Runtime playback uses local files with no server, download loop, telemetry or sound. The shared clock tick runs every ten seconds; there is no per-frame JavaScript or live backdrop blur. Gaming performance has not been benchmarked.
+The existing host rules pause wallpapers for fullscreen and maximized applications, and startup is enabled. Local-only mode needs no server. Full-catalogue mode uses a read-only loopback helper and on-demand NVIDIA decoding/AV1 encoding, paced slightly ahead of playback. Pausing detaches an online video to cancel its encoding request; resuming requests its saved position. There is no background bulk download, telemetry or sound. The shared clock tick runs every ten seconds; there is no per-frame JavaScript or live backdrop blur. Gaming performance has not been benchmarked.
 
 Windows screensaver configuration uses the existing official Wallpaper Engine screensaver module, with a five-minute idle timeout. Display power-off remains at the PC's pre-existing 15-minute AC setting. Windows manages screensaver timing; a wallpaper is separate from the Windows lock screen. Previous wallpaper and screensaver settings are backed up locally before applying the setup.
 
-## Build and prepare
+## Full catalogue
+
+The helper selects the highest available SDR source for each scene, preserving source resolution and bit depth. The snapshot includes 126 normal-speed 4K scenes, another 38 requiring Mac 240→29.97 fps timing correction, and 52 older HD-only scenes. HD is not upscaled. Some Apple URLs no longer exist; a catalogue record does not guarantee a reachable video. Compatibility conversion to AV1 is lossy. Desktop playback remains SDR, without HDR or Dolby Vision.
+
+Prepare local startup clips first if desired, then enable the catalogue and install its Windows helper:
+
+```powershell
+node tools/build-desktop.cjs --catalogue
+./tools/install-desktop-helper.ps1
+```
+
+The installer copies the helper and catalogue to `%LOCALAPPDATA%/AerialDesktop/helper` and creates a per-user Startup shortcut. It requires Node.js and an FFmpeg build with CUDA decoding, the `realtime` filter and `av1_nvenc`, plus a compatible NVIDIA GPU. It does not elevate privileges or change execution policy. Import the rebuilt package into Wallpaper Engine. Restart the helper by rerunning the installer after source updates; rebuild the package after catalogue changes.
+
+The service binds only to `127.0.0.1:5194`. It accepts catalogue IDs and a bounded playback offset, never arbitrary URLs, paths, or commands. Source URLs are taken exclusively from the bundled Apple catalogue. `GET /api/status` reports catalogue size, cache usage and the active worker. There is one preparation worker. Source failures are held for 24 hours; an interrupted request is cancelled rather than treated as a missing source.
+
+Completed, indexed cache files are capped at **4 GiB**, in addition to the existing local videos. A single cacheable online clip is limited to 2 GiB; larger clips still play but are not retained. Temporary output can add up to 2 GiB while streaming. Completed streams are losslessly remuxed to add WebM duration and seek metadata before entering the cache. Only owned cache filenames are pruned; local startup videos are retained. With the three existing startup clips, video storage peaks around 13.8 GiB, excluding the separate original-source preparation cache. A complete 216-entry cycle exceeds the cache, so videos will be fetched again on later cycles. Network access is required for uncached footage.
+
+To return to local-only playback, use the backed-up package or build a separate fresh package without `--catalogue` and prepare its local playlist. Remove the `Aerial Desktop Catalogue` shortcut from the user's Startup folder to disable automatic helper startup. The original wallpaper and screensaver settings are separately backed up on the development PC.
+
+## Build and prepare local clips
 
 Requires Node.js 22+, FFmpeg/ffprobe with `av1_nvenc`, an NVIDIA GPU that supports AV1 encoding, and Wallpaper Engine for desktop integration. The host is not bundled.
 
@@ -46,7 +67,7 @@ This development server binds to loopback and supports byte-range requests witho
 
 ## Validation and assets
 
-The combined suite has 46 passing tests. Desktop checks cover property validation, clock formatting and OLED behavior, host pause/resume, local-path restrictions, bounded playback failures and shuffle/sequential transitions. Native Wallpaper Engine playback was visually checked with moving footage, Glass and Immersive clocks, live style changes and a manual screensaver start. Host customization controls are present in the native library. Local preview byte-range, invalid-range and traversal requests were checked. Full idle timing and gaming performance require separate observation.
+The combined suite has 50 passing tests. Desktop checks cover property validation, clock formatting and OLED behavior, host pause/resume, source restrictions, bounded playback failures, complete 216-entry cycles across a failure and reload, online pause cancellation, source selection/retiming, and helper HTTP boundaries. Native Wallpaper Engine playback was visually checked with moving Mac aerial footage in 4K 10-bit SDR and the Glass clock. Legacy HD streaming, source dimensions/bit depth/frame rate, cancelled worker cleanup and WebM indexing were checked separately. Earlier checks covered Immersive clocks, native customization controls and a manual screensaver start. A complete multi-hour catalogue cycle, full idle timing and gaming performance require separate observation.
 
 Apple footage, source caches, local settings, private screen captures and generated packages stay outside tracked source. The repository's MIT license covers its code; it does not relicense Apple's media. Prepared videos are local runtime assets, not included in the public repository or TV package.
 
