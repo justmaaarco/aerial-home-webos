@@ -3,7 +3,7 @@ function sources(scene){
   const seen=new Set();
   return (scene?.variants||[]).filter(v=>{
     let u;try{u=new URL(v.url);}catch(_){return false;}
-    if(v.range!=='SDR'||v.available===false||!['http:','https:'].includes(u.protocol)||!['sylvan.apple.com','a1.phobos.apple.com'].includes(u.hostname)||u.username||u.password||seen.has(u.href))return false;
+    if(!Number.isFinite(v.height)||v.height<1440||v.range!=='SDR'||v.available===false||!['http:','https:'].includes(u.protocol)||!['sylvan.apple.com','a1.phobos.apple.com'].includes(u.hostname)||u.username||u.password||seen.has(u.href))return false;
     seen.add(u.href);return true;
   }).sort((a,b)=>b.height-a.height||(a.fps>60)-(b.fps>60));
 }

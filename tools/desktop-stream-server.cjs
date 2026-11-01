@@ -4,19 +4,22 @@ const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),
 const {sources,argumentsFor}=require(fs.existsSync(path.join(__dirname,'catalogue-core.cjs'))?'./catalogue-core.cjs':'../desktop/catalogue-core.cjs');
 const scope={window:{}},catalogueFile=fs.existsSync(path.join(__dirname,'catalogue.js'))?path.join(__dirname,'catalogue.js'):path.join(__dirname,'../app/catalogue.js');
 vm.runInNewContext(fs.readFileSync(catalogueFile,'utf8'),scope);
-const scenes=new Map(scope.window.APPLE_AERIALS.scenes.filter(s=>/^[a-zA-Z0-9_-]+$/.test(s.id)).map(s=>[s.id,s]));
+const scenes=new Map(scope.window.APPLE_AERIALS.scenes.filter(s=>/^[a-zA-Z0-9_-]+$/.test(s.id)&&sources(s).length).map(s=>[s.id,s]));
 const port=Number(process.env.AERIAL_DESKTOP_PORT||5194),cache=path.resolve(process.env.AERIAL_DESKTOP_CACHE||path.join(__dirname,'../cache'));
 const seed=path.resolve(process.env.AERIAL_DESKTOP_SEED||path.join(__dirname,'../wallpaper/videos'));
 const limit=4*1024**3,maxEntry=limit/2,readers=new Map(),failures=new Map();let worker=null,lastResult=null;
 const clients=new Map();
 fs.mkdirSync(cache,{recursive:true});
-const cacheFiles=()=>fs.readdirSync(cache).filter(n=>/^[a-zA-Z0-9_-]+\.webm$/.test(n)).flatMap(name=>{try{const stat=fs.lstatSync(path.join(cache,name));return stat.isFile()?[{name,stat}]:[];}catch(_){return [];}});
+// Legacy cache can contain a 1080p fallback for a 4K scene. Only new quality-
+// restricted encodes are playable; both generations still count toward pruning.
+const cacheName=id=>id+'.qhd.webm';
+const cacheFiles=()=>fs.readdirSync(cache).filter(n=>/^[a-zA-Z0-9_-]+(?:\.qhd)?\.webm$/.test(n)).flatMap(name=>{try{const stat=fs.lstatSync(path.join(cache,name));return stat.isFile()?[{name,stat}]:[];}catch(_){return [];}});
 function readyIds(){
   const ids=new Set();
   for(const dir of [seed,cache]){
     let names=[];try{names=fs.readdirSync(dir);}catch(_){}
     for(const name of names){
-      const id=name.replace(/\.webm$/,'');if(name!==id+'.webm'||!scenes.has(id))continue;
+      const suffix=dir===cache?'.qhd.webm':'.webm',id=name.endsWith(suffix)?name.slice(0,-suffix.length):'';if(!scenes.has(id))continue;
       try{const stat=fs.lstatSync(path.join(dir,name));if(stat.isFile()&&stat.size>0)ids.add(id);}catch(_){}
     }
   }
@@ -24,7 +27,7 @@ function readyIds(){
 }
 function prune(reserve=0){const files=cacheFiles().sort((a,b)=>a.stat.mtimeMs-b.stat.mtimeMs);let total=files.reduce((n,f)=>n+f.stat.size,0);for(const f of files){if(total+reserve<=limit)break;if(readers.get(f.name))continue;try{fs.unlinkSync(path.join(cache,f.name));total-=f.stat.size;}catch(_){}}return total+reserve<=limit;}
 // Only this service's known temporary files are eligible for cleanup after an interrupted run.
-for(const name of fs.readdirSync(cache))if(/^[a-zA-Z0-9_-]+\.webm\.(part|index)$/.test(name)&&fs.lstatSync(path.join(cache,name)).isFile())fs.unlinkSync(path.join(cache,name));
+for(const name of fs.readdirSync(cache))if(/^[a-zA-Z0-9_-]+(?:\.qhd)?\.webm\.(part|index)$/.test(name)&&fs.lstatSync(path.join(cache,name)).isFile())fs.unlinkSync(path.join(cache,name));
 function json(res,status,data){res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});res.end(JSON.stringify(data));}
 function cached(res,req,file){
   const stat=fs.statSync(file),size=stat.size,name=path.basename(file);let start=0,end=size-1,status=200;
@@ -51,14 +54,14 @@ const server=http.createServer((req,res)=>{
   const info=/^\/api\/info\/([a-zA-Z0-9_-]+)$/.exec(u.pathname);
   if(info&&scenes.has(info[1])){const ready=readyIds();json(res,200,{cached:ready.includes(info[1]),busy:!!worker,ready});return;}
   if(!scene){json(res,404,{error:'Unknown catalogue ID'});return;}
-  for(const dir of [seed,cache]){const file=path.join(dir,scene.id+'.webm');try{const stat=fs.lstatSync(file);if(stat.isFile()&&stat.size>0){cached(res,req,file);return;}}catch(_){}}
+  for(const dir of [seed,cache]){const file=path.join(dir,dir===cache?cacheName(scene.id):scene.id+'.webm');try{const stat=fs.lstatSync(file);if(stat.isFile()&&stat.size>0){cached(res,req,file);return;}}catch(_){}}
   if(req.method==='HEAD'){res.writeHead(200,{'Content-Type':'video/webm'}).end();return;}
   const offset=Number(u.searchParams.get('t')||0);if(!Number.isFinite(offset)||offset<0||offset>7200){json(res,400,{error:'Invalid playback position'});return;}
   if(worker){json(res,503,{error:'Another aerial is preparing; retry shortly'});return;}
   const candidates=sources(scene).filter(v=>!failures.get(v.url)||Date.now()-failures.get(v.url)>24*3600000);
   if(!candidates.length){json(res,404,{error:'No reachable SDR source remains for this aerial'});return;}
   const job={id:scene.id,title:scene.title,process:null,closed:false,complete:false};worker=job;
-  let output=null,eligible=false,bytes=0,temp=path.join(cache,scene.id+'.webm.part');
+  let output=null,eligible=false,bytes=0,temp=path.join(cache,cacheName(scene.id)+'.part');
   const cleanup=()=>{if(output){job.process?.stdout?.unpipe(output);output.destroy();output=null;}try{fs.unlinkSync(temp);}catch(_){}};
   res.on('close',()=>{job.closed=true;if(!job.complete){job.process?.kill();cleanup();if(worker===job)worker=null;}});
   function attempt(index){
@@ -82,9 +85,9 @@ const server=http.createServer((req,res)=>{
         res.end();
         if(!eligible||!fs.existsSync(temp)||!prune(bytes*2)){cleanup();if(worker===job)worker=null;return;}
         // The streamed WebM has no seek index. Losslessly remux it before publishing a cache entry.
-        const indexed=path.join(cache,scene.id+'.webm.index');
+        const indexed=path.join(cache,cacheName(scene.id)+'.index');
         const p=spawn(process.env.AERIAL_DESKTOP_FFMPEG||'ffmpeg',['-nostdin','-hide_banner','-loglevel','error','-y','-i',temp,'-map','0:v:0','-c','copy','-f','webm',indexed],{stdio:'ignore',windowsHide:true});job.process=p;p.on('error',()=>{});
-        p.on('close',code=>{try{if(code===0)fs.renameSync(indexed,path.join(cache,scene.id+'.webm'));else fs.unlinkSync(indexed);}catch(_){}cleanup();if(worker===job)worker=null;});
+        p.on('close',code=>{try{if(code===0)fs.renameSync(indexed,path.join(cache,cacheName(scene.id)));else fs.unlinkSync(indexed);}catch(_){}cleanup();if(worker===job)worker=null;});
       };
       if(output&&!output.writableFinished)output.once('finish',save);else save();
     });

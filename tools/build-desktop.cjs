@@ -25,7 +25,8 @@ fs.appendFileSync(path.join(destination,'mode.js'),'window.AERIAL_DESKTOP_BUILD=
 if(!fs.existsSync(path.join(destination,'playlist.js')))fs.writeFileSync(path.join(destination,'playlist.js'),'window.AERIAL_DESKTOP_PLAYLIST=[];\n');
 if(fullCatalogue){
   const vm=require('node:vm'),scope={window:{}};vm.runInNewContext(fs.readFileSync(path.join(root,'app/catalogue.js'),'utf8'),scope);
-  const list=scope.window.APPLE_AERIALS.scenes.map(s=>({id:s.id,title:s.title,category:s.category,streaming:true,local:fs.existsSync(path.join(destination,'videos',s.id+'.webm')),file:'http://127.0.0.1:5194/video/'+s.id+'.webm'}));
+  const {sources}=require('../desktop/catalogue-core.cjs');
+  const list=scope.window.APPLE_AERIALS.scenes.filter(s=>sources(s).length).map(s=>({id:s.id,title:s.title,category:s.category,streaming:true,local:fs.existsSync(path.join(destination,'videos',s.id+'.webm')),file:'http://127.0.0.1:5194/video/'+s.id+'.webm'}));
   fs.writeFileSync(path.join(destination,'playlist.js'),'window.AERIAL_DESKTOP_CATALOGUE_MODE=true;window.AERIAL_DESKTOP_PLAYLIST='+JSON.stringify(list)+';\n');
 }
 fs.mkdirSync(path.join(destination,'videos'),{recursive:true});console.log('Built '+destination);
