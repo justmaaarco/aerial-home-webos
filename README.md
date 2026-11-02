@@ -2,21 +2,38 @@
 
 [![Checks](https://github.com/justmaaarco/aerial-home-webos/actions/workflows/ci.yml/badge.svg)](https://github.com/justmaaarco/aerial-home-webos/actions/workflows/ci.yml)
 
-**A calmer home for your TV.** An independent, open-source home screen for LG TVs, inspired by the spacing, focus behavior and translucent controls of tvOS 26. Built from scratch in HTML, CSS and JavaScript. MIT licensed.
+**A calmer home for your TV.** An independent, open-source home screen for rooted LG TVs, inspired by the spacing, focus behavior and translucent controls of tvOS 26. The primary TV implementation uses Rust, SDL2 and OpenGL ES. MIT licensed.
 
 **Early alpha.** This is a working launcher, not a complete tvOS implementation or a pixel-identical replica. It launches LG apps and inputs. It cannot install tvOS apps or reproduce Apple's private services.
 
+The development TV now uses **Aerial Home Native** for Home and power-on, under the existing app ID `io.github.justmaaarco.aerialhome.nativeprobe`. The legacy web TV package `io.github.justmaaarco.aerialhome` was removed after migration checks. LG's built-in Home remains installed. This describes that TV's separately configured integration; installing an IPK does not automatically change another TV's bindings.
+
+The browser TV implementation remains in the repository as legacy source and preview material. Its shared core, media, catalogue and font assets are also used by the independent Windows wallpaper/screensaver and the native packager.
+
 ![Aerial Home sharing card with an actual browser preview and original demo scenery](docs/screenshots/07-share-card.jpg)
 
-**[Download the latest alpha](https://github.com/justmaaarco/aerial-home-webos/releases) · [Install](docs/install.md) · [Screenshot gallery](docs/screenshots/README.md) · [Security](SECURITY.md)**
+**[Native build and validation](native/README.md) · [Install](docs/install.md) · [Windows wallpaper/screensaver](docs/desktop.md) · [Security](SECURITY.md)**
 
 | Home | Control Center |
 | --- | --- |
 | ![Browser Home demo](docs/screenshots/01-home.jpg) | ![Browser Control Center demo](docs/screenshots/03-control-center.jpg) |
 
-Public screenshots use original demo icons and an AI-generated scenic still, not personal TV captures or Apple video frames. They show the actual browser preview, with the demo scenery identified in the footer. [View the full set and reproduction notes](docs/screenshots/README.md).
+These legacy browser screenshots use original demo icons and an AI-generated scenic still, not personal TV captures or Apple video frames. They are not captures of the native renderer. [View the full set and reproduction notes](docs/screenshots/README.md).
 
-## Included
+## Native TV launcher
+
+- Cached installed apps and artwork, most-used/favourite Home selection, All apps, search and folders.
+- A compact input row revealed with Down; only OK activates an input.
+- Classic, Minimal, Liquid Glass and Immersive clocks, independent icon styles and light/dark appearance.
+- LG hardware aerial playback, capability-aware quality selection and saved shuffle progress.
+- OLED shifting, idle fading/hiding and thirty-minute dimming, with wake input consumed.
+- Background service/artwork workers, bounded text caches and redraws driven by changed UI state.
+
+See the [native implementation and recorded evidence](native/README.md), [performance work](docs/native-performance.md) and [hardware checklist](docs/native-testing.md). The latest optimized package has smoke-test evidence on one LG B4; complete feature coverage and a fresh matched startup comparison remain outstanding.
+
+## Legacy browser TV implementation
+
+The retained HTML/CSS/JavaScript implementation provides the following browser features. It is no longer the default TV package:
 
 - Installed LG app discovery and local app artwork, including higher resolution icons where available.
 - HDMI inputs discovered from the TV rather than hard-coded labels.
@@ -35,16 +52,27 @@ Public screenshots use original demo icons and an AI-generated scenic still, not
 - Bounded service timeouts, validated artwork paths, no telemetry and no cloud account.
 - Cached Home renders before TV discovery on repeat launches. Local artwork is reused from a bounded IndexedDB cache; HDMI and HDR discovery no longer block Home. See [startup behavior and measurements](docs/startup.md).
 - Home gets a configurable three-second head start before the first aerial starts, including on return from another app. Navigation and open menus postpone pending playback; an already-playing aerial continues behind menus. A small LG B4 comparison measured faster early navigation scheduling; see [method and limits](docs/startup.md).
-- Clock styles in the local 0.2.5 candidate: Classic, Minimal, Liquid Glass and Immersive, with a full-screen view, system/12/24-hour time and optional date. [Clock behavior and validation](docs/clocks.md). This candidate has not been installed on the TV or publicly released.
+- Clock styles in the legacy 0.2.5 browser candidate: Classic, Minimal, Liquid Glass and Immersive, with a full-screen view, system/12/24-hour time and optional date. [Browser clock behavior and validation](docs/clocks.md).
 - Independent icon styles in the same candidate: Classic, Liquid Glass, Minimal and Monochrome, plus optional always-visible Home labels. Styles reuse the existing app artwork and apply to Home, All apps, folders and input tiles. [Icon behavior and validation](docs/icons.md).
 
 Apple Account, Siri, FaceTime, HomeKit, AirPlay routing, Apple Music Sing and tvOS App Store apps are not implemented. A profile name does not switch streaming-service accounts. Search searches installed apps, not streaming catalogues. There is no fabricated Top Shelf/watch history integration. See [scope and validation](docs/status.md).
 
-## Preview and build
+## Build and preview
 
 For a Windows desktop wallpaper and screensaver with the same clock styles, see the separate [Aerial Desktop companion](docs/desktop.md). It uses Wallpaper Engine, supports local videos and an optional full-catalogue cycle with on-demand playback and a bounded cache, and is separate from the TV package.
 
-Requires Node.js 22 or newer. There are no package dependencies or installation steps.
+The native TV build needs Rust and a relocated [webOS native SDK](https://github.com/webosbrew/native-toolchain). Node.js 22 or newer supplies packaging, tests and browser previews; there are no npm dependencies. Rust dependencies are pinned in `native/Cargo.lock`.
+
+```sh
+rustup target add armv7-unknown-linux-gnueabi
+export WEBOS_SDK=/path/to/relocated/arm-webos-linux-gnueabi_sdk-buildroot
+sh native/build-tv.sh
+node tools/package-native.cjs native/target/armv7-unknown-linux-gnueabi/release/aerial-native-probe
+```
+
+The native IPK and checksum are written to `dist/`. See [native build details](native/README.md#build-and-package). The package contains no default-binding scripts, Apple video files or personal app artwork.
+
+For the retained legacy browser preview and shared JavaScript tests:
 
 ```sh
 node tools/serve.cjs
@@ -52,12 +80,11 @@ node tools/serve.cjs
 
 node --test test/*.test.cjs
 node tools/check-public.cjs
-node tools/package.cjs
 ```
 
-The package and SHA-256 checksum are written to `dist/`. The reproducible packager produces a standard IPK with no installation scripts. CI also builds an artifact.
+`node tools/package.cjs` is an explicit legacy web-TV build, rather than the default TV package.
 
-The normal desktop preview uses original sample tiles and a gradient backdrop. For the public scenic demo, run `node tools/showcase.cjs` and open the printed local address. Its original still-image backdrop and presentation assets stay outside the TV package. HEVC MOV aerial playback requires a compatible hardware decoder; browser screenshots do not demonstrate video playback support.
+The legacy browser preview uses original sample tiles and a gradient backdrop. For its public scenic demo, run `node tools/showcase.cjs` and open the printed local address. Its original still-image backdrop and presentation assets stay outside the TV package. HEVC MOV aerial playback requires a compatible hardware decoder; browser screenshots do not demonstrate video playback support. Native offscreen previews are documented separately in [native/README.md](native/README.md#offline-previews).
 
 ## Aerial catalogue and quality
 
@@ -75,15 +102,21 @@ TV-era aerials stream directly from Apple. Newer Mac files with 240 fps timing n
 
 ## Install on a TV
 
-The current adapter targets a **rooted webOS TV with Homebrew Channel** installed. Development tested on an LG B4 running webOS 9.2.4. Ordinary Developer Mode alone does not grant the app inventory/artwork access used here. Rooting and firmware compatibility are outside this app's installer.
+Native TV integration targets a **rooted webOS TV with Homebrew Channel** installed. Development tested on an LG B4 running webOS 9.2.4. Ordinary Developer Mode alone does not grant the app inventory/artwork access used here. Rooting and firmware compatibility are outside this app's installer.
 
-1. Download the IPK from Releases, or build it yourself.
+1. Build the native ARM IPK using the commands above. Older web alpha downloads are legacy packages.
 2. Install it with webOS Dev Manager / the LG CLI, or use Homebrew Channel's verified package installer. See [installation](docs/install.md).
-3. Open **Aerial Home** from the TV's app list.
+3. Open **Aerial Home Native** from the TV's app list.
 
-The app ID is `io.github.justmaaarco.aerialhome`. Installation adds a separate app. It does not replace LG Home, modify startup scripts, map remote Power/Home buttons or uninstall another launcher.
+The native app ID remains `io.github.justmaaarco.aerialhome.nativeprobe` for storage and upgrade compatibility. Installation adds or updates that app. Default Home/power integration and retiring the legacy web package are separate migration steps; see [installation and recovery](docs/install.md). LG's built-in Home and the Windows wallpaper/screensaver are retained.
 
-## Remote
+## Native controls
+
+Use the direction arrows to navigate, OK to activate and Back to return. Down from the app row reveals the compact input row; only OK selects an input. The pointer can focus and activate visible items. Home uses the separately configured native reset/foreground route. See the [hardware checklist](docs/native-testing.md) for controls and lifecycle checks that remain open.
+
+### Legacy browser controls
+
+The following keyboard/browser shortcuts belong to the retained browser implementation:
 
 | Action | Control |
 | --- | --- |
@@ -104,7 +137,7 @@ App artwork is read from the user's installed apps and stays on the TV. It is no
 
 Aerial videos are **not bundled or covered by this project's MIT license**. The app references public Apple media endpoints. These currently use HTTP; no credentials are sent. Availability and permission to use the media are separate from this project's code license. We do not disable TLS validation or imply an Apple media redistribution license.
 
-This project is not affiliated with or endorsed by Apple or LG. Apple TV, tvOS and Liquid Glass are Apple's names. The rendering is an independent CSS approximation, not Apple's Liquid Glass implementation. LG documents a 1080p graphics plane and up to 4K video playback for UHD TVs: [app resolution](https://webostv.developer.lge.com/develop/specifications/app-resolution).
+This project is not affiliated with or endorsed by Apple or LG. Apple TV, tvOS and Liquid Glass are Apple's names. The native and legacy browser rendering are independent approximations, not Apple's Liquid Glass implementation. LG documents a 1080p graphics plane and up to 4K video playback for UHD TVs: [app resolution](https://webostv.developer.lge.com/develop/specifications/app-resolution).
 
 ## Contributing
 

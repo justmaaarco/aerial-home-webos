@@ -1,5 +1,5 @@
 'use strict';
-// Separate native launcher: preserves the existing web app as a recovery route.
+// Native TV package with its established app ID; no startup or uninstall hooks.
 const fs=require('node:fs'),path=require('node:path'),zlib=require('node:zlib'),crypto=require('node:crypto');
 const root=path.resolve(__dirname,'..'),info=JSON.parse(fs.readFileSync(path.join(root,'native/appinfo.json')));
 if(info.id!=='io.github.justmaaarco.aerialhome.nativeprobe'||info.type!=='native')throw Error('Expected separate native launcher ID');

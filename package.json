@@ -2,14 +2,14 @@
   "name": "aerial-home-webos",
   "version": "0.2.5",
   "private": true,
-  "description": "An independent glass-inspired home screen for rooted LG webOS TVs",
+  "description": "A native Rust home screen for rooted LG webOS TVs with a Windows aerial companion",
   "license": "MIT",
   "scripts": {
     "start": "node tools/serve.cjs",
     "test": "node --test test/*.test.cjs",
     "check:public": "node tools/check-public.cjs",
     "showcase": "node tools/showcase.cjs",
-    "build": "node tools/package.cjs"
+    "build": "node tools/package-native.cjs"
   },
   "engines": { "node": ">=22" }
 }

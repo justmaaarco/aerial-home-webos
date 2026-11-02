@@ -1,8 +1,8 @@
 # Aerial Home Native validation checklist
 
-This checklist covers the separate **0.2.0 native candidate**, `io.github.justmaaarco.aerialhome.nativeprobe`. Different builds share that version; identify them by package hash. Record firmware, conditions and evidence for each check. Unit tests, software previews and accelerated hardware trials establish different things; do not substitute one for another.
+This checklist covers the **0.2.0 native implementation**, `io.github.justmaaarco.aerialhome.nativeprobe`, now the development TV's default. Different builds share that version; identify them by package hash. Record firmware, conditions and evidence for each check. Unit tests, software previews and accelerated hardware trials establish different things; do not substitute one for another.
 
-The original web launcher remains the Home-button and power-on target. No native Home/power migration has been applied. HDMI power-link settings are unchanged; a later PS5 CEC takeover means console behavior still needs separate re-verification.
+The development TV's Home-button and power-on integration now targets native, and the legacy web TV app was uninstalled after migration checks. LG's built-in Home and the independent PC wallpaper/screensaver remain. HDMI power-link settings are unchanged; a later PS5 CEC takeover means console behavior still needs separate re-verification.
 
 ## Historical visual-port evidence
 
@@ -25,9 +25,15 @@ The recorded accelerated trial used package SHA-256 `6842489f2c16adf3dc55f8a8b38
 
 ## Current optimized package
 
-Package `90990b55dcfc75015b42deb075f02f3cb29033ac24662099d736639f6006a1b1` passed 56 headless Rust/SDL tests (including 52 default Rust tests), 61 Node tests, a byte-identical offscreen rendering comparison, and an ARM release build. It was installed in the separate native app on 2026-11-02; binary hash, normal foreground, real artwork and 4K Dolby Vision hardware playback were verified. A short hidden-process sample recorded approximately 0.52% of one core. Preferences, file permissions and original web Home/power bindings were restored after smoke testing; the TV was returned to standby. See [performance evidence and limitations](native-performance.md). The full checklist and a fresh matched startup/handoff comparison remain outstanding for this optimized package.
+Package `90990b55dcfc75015b42deb075f02f3cb29033ac24662099d736639f6006a1b1` passed 56 headless Rust/SDL tests (including 52 default Rust tests), 61 Node tests, a byte-identical offscreen rendering comparison, and an ARM release build. It was installed in the separate native app on 2026-11-02; binary hash, normal foreground, real artwork and 4K Dolby Vision hardware playback were verified. A short hidden-process sample recorded approximately 0.52% of one core. Preferences, file permissions and original web Home/power bindings were restored after that initial smoke test; the later migration is recorded below. See [performance evidence and limitations](native-performance.md). The full checklist and a fresh matched startup/handoff comparison remain outstanding for this optimized package.
 
 The catalogue has 216 entries; 164 have an eligible source of at least 1440p under the tested capabilities/helper configuration. This is source eligibility, not a successful playback count. The [0.1.0 placeholder probe](../native/measurements.json) is historical and is not part of the candidate's performance evidence.
+
+## Development TV migration
+
+After the initial smoke test, the user requested native as the TV default and removal of the legacy web TV app. Compatible web settings were imported and the five-column layout was visually checked. The native Home helper reset Control Center to Home and returned from Netflix after OK activation. Normal power cycles reached native both before and after uninstalling only `io.github.justmaaarco.aerialhome`. App-manager inspection confirmed the web app absent and native retained. These checks exercised the configured Home binding/helper; the physical IR Home key was not manually pressed. The retained native app ID is `io.github.justmaaarco.aerialhome.nativeprobe`. Recovery uses a private offline archive of the legacy package, preferences and integration configuration.
+
+This records the migration checks, not completion of the full checklist. Four [Home/power helper](native-home.md) regression tests bring the Node suite to 65 passing tests. Shared `app/` source/assets remain for desktop builds, native packaging and legacy browser previews. No PC package or LG built-in Home was removed.
 
 ## Package and service boundaries
 
@@ -36,7 +42,7 @@ The catalogue has 216 entries; 164 have an eligible source of at least 1440p und
 - [x] Discover real app/input inventory and display it in the native UI.
 - [ ] Exercise installed-app LS2 inventory, input, capability, artwork and control requests. Confirm bounded failures with a navigable recovery path; a root-side diagnostic alone is insufficient.
 - [ ] Exit and relaunch; check for orphaned app/media workers, stale sockets and compositor surfaces.
-- [ ] Verify that candidate tests leave the web app's files, preferences and Home/power bindings unchanged.
+- [ ] Verify native upgrades preserve app-owned preferences and the configured Home/power route without modifying unrelated apps or PC settings.
 
 ## Visual parity and navigation
 
@@ -85,14 +91,14 @@ The catalogue has 216 entries; 164 have an eligible source of at least 1440p und
 - [ ] Read and change real volume/mute, then restore the original state.
 - [ ] Set and verify a supported sleep timer, cancel it immediately and verify cancellation. Do not leave a test timer active.
 
-## Performance and default-switch gate
+## Performance and migration checks
 
-- [ ] Record repeated native/web fresh starts with matched app counts, artwork, effects and cache conditions. Report TV wake/app-manager delay separately from UI initialization.
+- [ ] Record fresh measurements for the current package hash before attributing startup/handoff improvements to it. For matched comparisons, control app counts, artwork, effects and caches; report TV wake/app-manager delay separately from UI initialization.
 - [ ] Compare navigation and settings without video, then with the same hardware-decoded clip and picture/power settings.
 - [ ] Measure physical remote response alongside scripted samples, p95/p99, idle CPU, memory and video resources. State each timing boundary and sample count.
 - [ ] Repeat foreground returns and normal off/on cycles; check memory growth, long pauses, duplicate workers and retained resources.
 - [ ] Test `--home` reset followed by a SAM foreground request from a native panel, another app and a stopped native process. It must not select an input or create duplicate instances/root-owned saved data.
-- [ ] Complete app launching, input safety, persistence, OLED wake, lifecycle and recovery checks before changing Home or startup targets.
-- [ ] Keep the web launcher installed for rollback. After any deliberate default switch, separately verify the physical Home button and TV power-on path, including the PS5 arrangement.
+- [ ] Complete the broader app-launching, input-safety, persistence, OLED-wake, lifecycle and recovery checks. The user-requested development-TV switch does not imply these are all validated.
+- [ ] Verify the private offline recovery archive and its restore procedure. Recheck the physical Home button, power-on path and PS5 arrangement after future integration changes; an installed legacy web app is not required for the current setup.
 
 Publish artifact-specific outcomes and remaining limits. Unit-test totals, software previews and the historical rendering probe do not establish a complete replacement or a matched performance improvement.

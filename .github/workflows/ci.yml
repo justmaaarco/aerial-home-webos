@@ -1,4 +1,4 @@
-name: Check and package
+name: Check native and desktop
 on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
@@ -11,6 +11,8 @@ jobs:
           persist-credentials: false
       - name: Test native launcher model and platform boundaries
         run: |
+          sudo apt-get update
+          sudo apt-get install --yes libglib2.0-dev
           rustup toolchain install 1.99.1 --profile minimal
           cargo +1.99.1 test --locked --manifest-path native/Cargo.toml
   check:
@@ -25,11 +27,6 @@ jobs:
       - run: node --test test/*.test.cjs
       - run: node tools/check-public.cjs
       - run: node --check app/app.js && node --check app/bridge.js && node --check app/cache.js
-      - run: node tools/package.cjs
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: aerial-home-webos
-          path: dist/*
   secrets:
     runs-on: ubuntu-latest
     steps:

@@ -1,14 +1,14 @@
-# Aerial Home Native — 0.2.0 candidate
+# Aerial Home Native — 0.2.0 alpha
 
-Aerial Home Native ports the existing Aerial Home interface to Rust, SDL2 and OpenGL ES for rooted LG webOS TVs. It uses the separate app ID `io.github.justmaaarco.aerialhome.nativeprobe`; the installed title is **Aerial Home Native**. The original web launcher remains the Home-button and power-on target. Native code does not change those bindings or HDMI power-link settings.
+Aerial Home Native is the primary TV implementation, using Rust, SDL2 and OpenGL ES for rooted LG webOS TVs. Its existing app ID `io.github.justmaaarco.aerialhome.nativeprobe` is retained for saved-data and upgrade compatibility; the installed title is **Aerial Home Native**. The development TV's separately configured Home/power integration now targets native, and the legacy web TV package was removed. Package installation itself does not configure those bindings or change HDMI power-link settings.
 
-This is a candidate implementation, not a validated replacement for every web flow or TV model. It follows Aerial Home's existing design and does not promise pixel identity or feature equivalence with tvOS. The 0.2.0 build has a matched comparison on one LG B4; subsequent source optimizations still need a fresh TV comparison before promotion.
+This is an alpha implementation with outstanding validation on individual flows and other TV models. It follows Aerial Home's existing design and does not promise pixel identity or feature equivalence with tvOS. An earlier 0.2.0 build has a matched comparison on one LG B4; subsequent source optimizations still need a fresh comparison before claiming their startup or handoff benefit.
 
-The current performance pass fixes hidden-window busy polling, defers new artwork work while hidden, redraws time-dependent UI only when visible state changes, caches text measurements and uses bounded event-driven service waits. Its package was deployed to the separate native app and smoke-checked on the development TV on 2026-11-02. The original web Home/power bindings remain in place. See [performance engineering](../docs/native-performance.md) and [platform research](../docs/native-platform-research.md) for evidence, limits and validation.
+The current performance pass fixes hidden-window busy polling, defers new artwork work while hidden, redraws time-dependent UI only when visible state changes, caches text measurements and uses bounded event-driven service waits. Its package was deployed and smoke-checked on the development TV on 2026-11-02, followed by the user-requested native-default migration. See [performance engineering](../docs/native-performance.md), [platform research](../docs/native-platform-research.md) and the [migration record](../docs/native-testing.md#development-tv-migration) for evidence, limits and validation.
 
 ## Architecture and interface
 
-The UI is a native Rust process rather than a Chromium page. It follows `app/style.css`: the Home identity, three icon controls, Inter typography, brand-colour artwork tiles, focus treatment, input row, compact panels and clock styles. Bundled static Inter faces come from the web app's existing variable font and retain its OFL license.
+The UI is a native Rust process rather than a Chromium page. It follows the retained legacy `app/style.css`: the Home identity, three icon controls, Inter typography, brand-colour artwork tiles, focus treatment, input row, compact panels and clock styles. Bundled static Inter faces come from the shared variable font and retain its OFL license. Shared browser assets remain available for the PC wallpaper/screensaver and native packaging.
 
 SDL textures cache text, rounded surfaces, static glass highlights and artwork. Icons preserve aspect ratio, clip rounded edges and use app metadata for preferred artwork and brand colours. Home, library, search and panel scrolling retain their offsets when pointer focus changes. No effect samples or blurs the live video plane.
 
@@ -30,7 +30,7 @@ These are source capabilities. Physical remote operation, persistence, lifecycle
 
 ## Recorded validation
 
-The development TV is an LG B4 with 32-bit ARM soft-float application userspace. The recorded visual-port package is SHA-256 `6842489f2c16adf3dc55f8a8b38a072024a563a75a3e28f0c78234f90bdf87a6`.
+The development TV is an LG B4 with 32-bit ARM soft-float application userspace. The following historical visual-port record uses package SHA-256 `6842489f2c16adf3dc55f8a8b38a072024a563a75a3e28f0c78234f90bdf87a6`.
 
 | Check | Recorded result |
 | --- | --- |
@@ -47,7 +47,7 @@ The development TV is an LG B4 with 32-bit ARM soft-float application userspace.
 
 The initialization timer starts before SDL initialization, after local Home IPC setup, and ends when `SDL_RenderPresent` returns for the corresponding frame. It excludes TV wake, app-manager launch and jail setup. Scripted samples are not physical remote-to-photon measurements. One run and one RSS sample do not establish sustained performance or a native/web speedup. Per-artifact records are kept in [measurements-v0.2.json](measurements-v0.2.json).
 
-**41 Rust tests** pass: 14 library and 27 binary tests, alongside **61 Node tests**. The transparent-letterbox correction passed seven raster tests and an accelerated GPU recheck: app artwork edges are clean and the Dolby Vision badge matches the independently verified pipeline. Do not transfer the table's timings or visual result to an untested package hash.
+That visual-port build passed **41 Rust tests**, 14 library and 27 binary, alongside **61 Node tests**. The transparent-letterbox correction passed seven raster tests and an accelerated GPU recheck: app artwork edges were clean and the Dolby Vision badge matched the independently verified pipeline. The optimized package passed **56 headless Rust/SDL tests**, 23 library and 33 binary, including the 52 default Rust tests, plus 61 Node tests. Four later Home/power integration tests bring the Node suite to 65. Do not transfer the historical table's timings to a different package hash.
 
 The catalogue contains 216 entries; 164 have a source of at least 1440p eligible under the tested capabilities/helper configuration. Eligibility does not establish successful playback of every URL or format. An end-of-clip transition to another verified 4K Dolby Vision pipeline has been exercised separately; a full shuffle cycle and final-package lifecycle checks remain outstanding.
 
@@ -70,7 +70,7 @@ Persistent data lives outside the installed payload in an app-owned directory. O
 
 The directory contains `preferences.json`, a separately revalidated `apps.json`, bounded `icons/` artwork and the owner-only `home.sock`. App and input inventory groups refresh independently. Keep this directory during upgrades; verify reads and writes through the jailed app rather than a root shell. Development hosts use `XDG_CONFIG_HOME` or the user's `.config` directory under the native app ID. Private inventories, helper details and saved data do not belong in public source.
 
-The binary's `--home` mode sends a best-effort local reset and exits. A running launcher returns from panels to Home without activating an app or input. This command does not foreground or launch the app; a Home integration must request it separately through SAM. Root-side clients reuse an existing app-owned directory rather than creating one. The default integration remains with the original web launcher while native validation continues.
+The binary's `--home` mode sends a best-effort local reset and exits. A running launcher returns from panels to Home without activating an app or input. This command does not foreground or launch the app; a Home integration must request it separately through SAM. Root-side clients reuse an existing app-owned directory rather than creating one. The development TV's Home and power-on targets now use native. These integrations remain separate from the app package; see the [routing helpers and verification scope](../docs/native-home.md).
 
 Native startup does not select an HDMI input. HDMI power linking is separate from launcher rendering: a later benchmark observed PS5 CEC input takeover, so the earlier console-side setting is not a guarantee of current behavior. SIMPLINK was temporarily isolated for that comparison and restored afterward. Preserve the user's other devices' power linking when diagnosing the console separately.
 
@@ -89,7 +89,7 @@ The build script runs locked host tests, cross-compiles the SDL build and prints
 
 The SDK lacks a `getauxval` link stub used by Rust, although the tested TV provides the underlying functionality. The compatibility implementation reads kernel auxiliary records and is covered by host tests; [Luma documents the same SDK limitation](https://github.com/ecklf/lg-luma/blob/main/src/webos-compat.rs). Native development uses community APIs; see [webOS Homebrew native development](https://www.webosbrew.org/pages/native-development).
 
-Normal launches have no fixed timeout. `--benchmark` performs scripted navigation for twenty seconds and exits. Keep the web app installed as a recovery route, complete the [hardware checks](../docs/native-testing.md), and measure matched native/web conditions before changing the Home or power-on target.
+Normal launches have no fixed timeout. `--benchmark` performs scripted navigation for twenty seconds and exits. The legacy web TV app is no longer installed on the development TV; recovery uses a private offline package/preferences/integration archive and the retained LG Home. See [installation and recovery](../docs/install.md). The user-requested default switch does not complete the remaining [hardware checks](../docs/native-testing.md) or establish a new performance result.
 
 ## Historical probe
 
