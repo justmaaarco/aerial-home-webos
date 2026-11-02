@@ -1,10 +1,10 @@
 {
   "id": "io.github.justmaaarco.aerialhome.nativeprobe",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "vendor": "Aerial Home contributors",
   "type": "native",
   "main": "aerial-native-probe",
-  "title": "Aerial Native Probe",
+  "title": "Aerial Home Native",
   "icon": "icon.png",
   "resolution": "1920x1080",
   "bgColor": "#0c1420"

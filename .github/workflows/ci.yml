@@ -3,6 +3,16 @@ on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
 jobs:
+  native:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Test native launcher model and platform boundaries
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal
+          cargo +1.99.1 test --locked --manifest-path native/Cargo.toml
   check:
     runs-on: ubuntu-latest
     steps:

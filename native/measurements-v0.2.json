@@ -1,0 +1,90 @@
+{
+  "date": "2026-11-02",
+  "device_family": "LG B4",
+  "webos": "9.2.4",
+  "app_version": "0.2.0",
+  "logical_width": 1920,
+  "logical_height": 1080,
+  "timed_trial": {
+    "package_sha256": "c8246e065886d18576c620470a2e6cbca5fe894b6ac6efce8b3cb544c6f04efe",
+    "runs": 1,
+    "timer_starts": "Before SDL initialization, after local Home IPC setup",
+    "timer_ends": "SDL_RenderPresent returns for the corresponding frame",
+    "first_presentation_ms": 330.414,
+    "first_app_grid_ms": 353.523,
+    "discovered_app_and_input_entries": 31,
+    "first_available_artwork_frame_ms": 815.014,
+    "includes_tv_wake_app_manager_or_jail_setup": false,
+    "all_home_artwork_visually_verified_later": true,
+    "video": {
+      "width": 3840,
+      "height": 2160,
+      "dynamic_range": "DolbyVision",
+      "codec": "dvh1",
+      "fps": 29.97,
+      "owned_hardware_decoder_and_scaler_verified": true,
+      "advancing_playback_time_verified": true,
+      "seek_near_end_automatically_started_different_aerial": true
+    }
+  },
+  "normal_app_manager_trial": {
+    "package_sha256": "fcefa9b905f30388718c1087328f4c848176bbdedf74798af1a8bcc9249a24bc",
+    "native_foreground_verified": true,
+    "rss_sample_kib": 28444,
+    "cached_app_and_input_entries": 31,
+    "cached_home_artwork_files": 5,
+    "visible_4k_dolby_vision_verified": true
+  },
+  "catalogue_entries": 216,
+  "entries_with_available_1440p_or_higher_source": 164,
+  "physical_remote_to_photon_measured": false,
+  "matched_web_comparison_performed": false,
+  "visual_port_trials": [
+    {
+      "package_sha256": "65bfb519f2575f9b672ac5be56df28793eae629508d1a78f2a29b81c80e33a31",
+      "first_presentation_ms": 408.981,
+      "first_app_grid_ms": 442.296,
+      "first_available_artwork_frame_ms": 1055.339,
+      "artwork_count_at_that_frame": 4,
+      "scripted_samples": 206,
+      "scripted_median_ms": 2,
+      "scripted_p95_ms": 4
+    },
+    {
+      "package_sha256": "6842489f2c16adf3dc55f8a8b38a072024a563a75a3e28f0c78234f90bdf87a6",
+      "first_presentation_ms": 454.558,
+      "first_app_grid_ms": 502.049,
+      "discovered_app_and_input_entries": 31,
+      "first_available_artwork_frame_ms": 668.951,
+      "artwork_count_at_that_frame": 1,
+      "scripted_samples": 207,
+      "scripted_median_ms": 2,
+      "scripted_p95_ms": 4,
+      "ui_process_rss_approx_mb": 27,
+      "renderer": "opengles2",
+      "video_width": 3840,
+      "video_height": 2160,
+      "dynamic_range": "DolbyVision",
+      "codec": "dvh1",
+      "fps": 29.97,
+      "advancing_owned_hardware_pipeline_verified": true,
+      "clean_artwork_edges_verified_on_gpu": true,
+      "normal_exit_code": 0,
+      "original_web_home_restored": true,
+      "native_processes_and_pipelines_remaining": 0
+    }
+  ],
+  "offline_visual_previews": {
+    "screens": [
+      "home-classic",
+      "settings",
+      "controls",
+      "home-glass",
+      "home-immersive"
+    ],
+    "owned_software_surface": true,
+    "sdl_video_initialized": false,
+    "service_requests": false,
+    "foreground_unchanged": true
+  }
+}

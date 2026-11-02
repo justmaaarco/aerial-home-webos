@@ -1,14 +1,31 @@
 //! Deterministic menu model shared by the probe and its host-side tests.
+pub mod catalogue;
+pub mod model;
 pub const LABELS: [&str; 10] = [
-    "NETFLIX", "YOUTUBE", "APPLE TV", "PRIME VIDEO", "SPOTIFY",
-    "ALL APPS", "CLOCK", "SETTINGS", "INPUTS", "EXIT",
+    "NETFLIX",
+    "YOUTUBE",
+    "APPLE TV",
+    "PRIME VIDEO",
+    "SPOTIFY",
+    "ALL APPS",
+    "CLOCK",
+    "SETTINGS",
+    "INPUTS",
+    "EXIT",
 ];
 
 #[derive(Clone, Copy)]
-pub enum Direction { Left, Right, Up, Down }
+pub enum Direction {
+    Left,
+    Right,
+    Up,
+    Down,
+}
 
 pub fn navigate(index: usize, count: usize, columns: usize, direction: Direction) -> usize {
-    if count == 0 || columns == 0 { return 0; }
+    if count == 0 || columns == 0 {
+        return 0;
+    }
     let index = index.min(count - 1);
     match direction {
         Direction::Left if index % columns > 0 => index - 1,
@@ -20,7 +37,9 @@ pub fn navigate(index: usize, count: usize, columns: usize, direction: Direction
 }
 
 pub fn percentile(values: &[f64], fraction: f64) -> Option<f64> {
-    if values.is_empty() { return None; }
+    if values.is_empty() {
+        return None;
+    }
     let mut sorted = values.to_vec();
     sorted.sort_by(f64::total_cmp);
     Some(sorted[((sorted.len() - 1) as f64 * fraction.clamp(0.0, 1.0)).round() as usize])

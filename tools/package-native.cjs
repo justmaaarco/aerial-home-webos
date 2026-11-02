@@ -1,8 +1,8 @@
 'use strict';
-// Separate native experiment: never replaces the production web app package.
+// Separate native launcher: preserves the existing web app as a recovery route.
 const fs=require('node:fs'),path=require('node:path'),zlib=require('node:zlib'),crypto=require('node:crypto');
 const root=path.resolve(__dirname,'..'),info=JSON.parse(fs.readFileSync(path.join(root,'native/appinfo.json')));
-if(info.id!=='io.github.justmaaarco.aerialhome.nativeprobe'||info.type!=='native')throw Error('Expected isolated native probe ID');
+if(info.id!=='io.github.justmaaarco.aerialhome.nativeprobe'||info.type!=='native')throw Error('Expected separate native launcher ID');
 const binary=fs.readFileSync(process.argv[2]||path.join(root,'native/target/armv7-unknown-linux-gnueabi/release/aerial-native-probe'));
 if(binary.subarray(0,4).toString('hex')!=='7f454c46'||binary[4]!==1||binary[5]!==1||binary.readUInt16LE(18)!==40)throw Error('Expected a 32-bit little-endian ARM ELF binary');
 function tar(files){
@@ -21,13 +21,19 @@ function tar(files){
 function gzip(data){const b=zlib.gzipSync(data);b[9]=255;return b;}
 function member(name,data){const h=(name+'/').padEnd(16)+'0'.padEnd(12)+'0'.padEnd(6)+'0'.padEnd(6)+'100644'.padEnd(8)+String(data.length).padEnd(10)+'`\n';return Buffer.concat([Buffer.from(h),data,data.length%2?Buffer.from('\n'):Buffer.alloc(0)]);}
 const prefix='./usr/palm/applications/'+info.id+'/';
+const vm=require('node:vm'),scope={window:{}};vm.runInNewContext(fs.readFileSync(path.join(root,'app/catalogue.js'),'utf8'),scope);
+const fontDir=path.join(root,'native/fonts');
+const fonts=fs.readdirSync(fontDir).filter(name=>/\.ttf$/.test(name)||name==='Inter-LICENSE.txt').sort().map(name=>[prefix+'fonts/'+name,fs.readFileSync(path.join(fontDir,name))]);
 const data=gzip(tar([
   [prefix+'appinfo.json',Buffer.from(JSON.stringify(info,null,2)+'\n')],
   [prefix+info.main,binary,493],
   [prefix+'icon.png',fs.readFileSync(path.join(root,'app/icon.png'))],
-  [prefix+'LICENSE',fs.readFileSync(path.join(root,'LICENSE'))]
+  [prefix+'LICENSE',fs.readFileSync(path.join(root,'LICENSE'))],
+  [prefix+'THIRD_PARTY_NOTICES.txt',fs.readFileSync(path.join(root,'native/THIRD_PARTY_NOTICES.txt'))],
+  [prefix+'catalogue.json',Buffer.from(JSON.stringify(scope.window.APPLE_AERIALS.scenes))],
+  ...fonts
 ]));
-const control=Buffer.from('Package: '+info.id+'\nVersion: '+info.version+'\nSection: misc\nPriority: optional\nArchitecture: arm\nMaintainer: Aerial Home contributors\nDescription: Isolated native rendering probe, no startup integration\n');
+const control=Buffer.from('Package: '+info.id+'\nVersion: '+info.version+'\nSection: misc\nPriority: optional\nArchitecture: arm\nMaintainer: Aerial Home contributors\nDescription: Native Rust TV launcher with hardware aerial video\n');
 const archive=Buffer.concat([Buffer.from('!<arch>\n'),member('debian-binary',Buffer.from('2.0\n')),member('control.tar.gz',gzip(tar([['./control',control]]))),member('data.tar.gz',data)]);
 const dir=path.resolve(process.argv[3]||path.join(root,'dist'));fs.mkdirSync(dir,{recursive:true});
 const name=info.id+'_'+info.version+'_arm.ipk';fs.writeFileSync(path.join(dir,name),archive);
