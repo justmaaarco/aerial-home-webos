@@ -8,7 +8,7 @@ A separate Rust/SDL2 probe was built, installed and run on the development B4 on
 
 Opening Aerial Home and waking an HDMI console are separate operations. The custom power listener launches only Aerial Home. The development TV's `powerOnScreen` setting was read back as `liveTv` (Recent Input), so LG can restore an HDMI input before the custom launcher opens. HDMI-CEC power linking can wake a connected console during that restore; this is a likely explanation, not a captured CEC trace.
 
-To preserve power linking for other HDMI devices, disable **Enable HDMI Device Link** on the PS5 under **Settings → System → HDMI**, leaving LG SIMPLINK enabled. This also removes the PS5's own automatic HDMI power and input switching, but does not disable the TV's CEC features for other devices. The owner confirmed changing that console setting; the subsequent TV off/on verification is pending. The Rust probe sends no app-launch, input-selection or CEC commands.
+To preserve power linking for other HDMI devices, disable **Enable HDMI Device Link** on the PS5 under **Settings → System → HDMI**, leaving LG SIMPLINK enabled. This also removes the PS5's own automatic HDMI power and input switching, but does not disable the TV's CEC features for other devices. The owner confirmed changing that console setting and then verified a normal TV off/on cycle: the PS5 stayed off while Aerial Home opened. The Rust probe sends no app-launch, input-selection or CEC commands.
 
 Reference: [LG's HDMI device power-linking explanation](https://www.lg.com/us/support/help-library/how-to-turn-your-tv-and-hdmi-devices-on-and-off-together--20155440742723).
 
