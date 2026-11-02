@@ -1,0 +1,22 @@
+{
+  "date": "2026-11-02",
+  "device_family": "LG B4",
+  "webos": "9.2.4",
+  "app_version": "0.1.0",
+  "runs": 1,
+  "renderer": "opengles2",
+  "accelerated": true,
+  "logical_width": 1920,
+  "logical_height": 1080,
+  "video_in_probe": false,
+  "automatic_navigation": true,
+  "native_code_entry_to_first_present_return_ms": 275.272,
+  "navigation_samples": 222,
+  "navigation_median_ms": 7,
+  "navigation_p95_ms": 9,
+  "timing_resolution_ms": 1,
+  "rss_at_approximately_three_seconds_kib": 23348,
+  "arm_executable_bytes": 339036,
+  "physical_remote_to_photon_measured": false,
+  "matched_web_comparison_performed": false
+}

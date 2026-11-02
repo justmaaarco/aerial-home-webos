@@ -1,5 +1,17 @@
 # Startup performance
 
+## Native renderer experiment
+
+A separate Rust/SDL2 probe was built, installed and run on the development B4 on 2 November 2026. It uses the `opengles2` accelerated renderer; it does not replace the web launcher or change the Home/power bindings. The first simple-menu run returned from its initial presentation after 275 ms, with 222 scripted navigation/presentation samples at 7 ms median and 9 ms p95. This excludes video, real app artwork, physical remote latency and app-manager/jail startup. A matched web/native comparison is still required; these numbers do not establish a complete launcher speedup. See [scope, reproducible build and measurement limits](../native/README.md).
+
+## Console power-on and HDMI-CEC
+
+Opening Aerial Home and waking an HDMI console are separate operations. The custom power listener launches only Aerial Home. The development TV's `powerOnScreen` setting was read back as `liveTv` (Recent Input), so LG can restore an HDMI input before the custom launcher opens. HDMI-CEC power linking can wake a connected console during that restore; this is a likely explanation, not a captured CEC trace.
+
+To preserve power linking for other HDMI devices, disable **Enable HDMI Device Link** on the PS5 under **Settings → System → HDMI**, leaving LG SIMPLINK enabled. This also removes the PS5's own automatic HDMI power and input switching, but does not disable the TV's CEC features for other devices. The owner confirmed changing that console setting; the subsequent TV off/on verification is pending. The Rust probe sends no app-launch, input-selection or CEC commands.
+
+Reference: [LG's HDMI device power-linking explanation](https://www.lg.com/us/support/help-library/how-to-turn-your-tv-and-hdmi-devices-on-and-off-together--20155440742723).
+
 ## Deferred aerial startup (0.2.4)
 
 Version 0.2.4 has been installed and tested on the development TV; it is not yet a public release. It reserves the first three seconds after Home's second animation-frame callback for the interface before starting the initial aerial. The same entry window applies when returning from another app. No video source is attached and no decoder is requested by Aerial Home during this wait.

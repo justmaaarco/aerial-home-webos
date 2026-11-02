@@ -1,0 +1,16 @@
+[package]
+name = "aerial-native-probe"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Separate SDL2 rendering probe for a potential native webOS launcher"
+
+[features]
+default = []
+sdl = []
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
