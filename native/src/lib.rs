@@ -1,6 +1,8 @@
 //! Deterministic menu model shared by the probe and its host-side tests.
 pub mod catalogue;
 pub mod model;
+pub mod redraw;
+pub mod text_cache;
 pub const LABELS: [&str; 10] = [
     "NETFLIX",
     "YOUTUBE",

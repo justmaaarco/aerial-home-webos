@@ -1,10 +1,10 @@
 # Aerial Home Native validation checklist
 
-This checklist covers the separate **0.2.0 native candidate**, `io.github.justmaaarco.aerialhome.nativeprobe`. Record the package hash, firmware, conditions and evidence for each check. Unit tests, software previews and accelerated hardware trials establish different things; do not substitute one for another.
+This checklist covers the separate **0.2.0 native candidate**, `io.github.justmaaarco.aerialhome.nativeprobe`. Different builds share that version; identify them by package hash. Record firmware, conditions and evidence for each check. Unit tests, software previews and accelerated hardware trials establish different things; do not substitute one for another.
 
-The original web launcher remains the Home-button and power-on target. No native Home/power migration has been applied. The already confirmed PS5 power-link configuration is unchanged.
+The original web launcher remains the Home-button and power-on target. No native Home/power migration has been applied. HDMI power-link settings are unchanged; a later PS5 CEC takeover means console behavior still needs separate re-verification.
 
-## Current evidence
+## Historical visual-port evidence
 
 | Evidence | Scope |
 | --- | --- |
@@ -21,7 +21,11 @@ The original web launcher remains the Home-button and power-on target. No native
 
 The recorded accelerated trial used package SHA-256 `6842489f2c16adf3dc55f8a8b38a072024a563a75a3e28f0c78234f90bdf87a6`. Its initialization timer starts before SDL setup, after local Home IPC setup, and stops at the relevant `SDL_RenderPresent` return. TV wake, app-manager startup and jail setup are excluded. See [native architecture and measurement limits](../native/README.md) and [per-artifact records](../native/measurements-v0.2.json).
 
-**Renderer gate passed:** the final package cross-built and passed the accelerated GPU recheck. The transparent-letterbox correction removed the observed artwork seams, and the `4K · DOLBY VISION` badge agrees with media inspection. No matched native/web speedup or broad TV-model compatibility has been established.
+**Renderer gate passed for that artifact:** the package cross-built and passed the accelerated GPU recheck. The transparent-letterbox correction removed the observed artwork seams, and the `4K · DOLBY VISION` badge agrees with media inspection. A later matched comparison of that build on one B4 favored native in three paired trials per scenario; it does not establish broad TV-model compatibility or performance for a different package.
+
+## Current optimized package
+
+Package `90990b55dcfc75015b42deb075f02f3cb29033ac24662099d736639f6006a1b1` passed 56 headless Rust/SDL tests (including 52 default Rust tests), 61 Node tests, a byte-identical offscreen rendering comparison, and an ARM release build. It was installed in the separate native app on 2026-11-02; binary hash, normal foreground, real artwork and 4K Dolby Vision hardware playback were verified. A short hidden-process sample recorded approximately 0.52% of one core. Preferences, file permissions and original web Home/power bindings were restored after smoke testing; the TV was returned to standby. See [performance evidence and limitations](native-performance.md). The full checklist and a fresh matched startup/handoff comparison remain outstanding for this optimized package.
 
 The catalogue has 216 entries; 164 have an eligible source of at least 1440p under the tested capabilities/helper configuration. This is source eligibility, not a successful playback count. The [0.1.0 placeholder probe](../native/measurements.json) is historical and is not part of the candidate's performance evidence.
 
@@ -59,7 +63,7 @@ The catalogue has 216 entries; 164 have an eligible source of at least 1440p und
 - [ ] Confirm that Down reveals the smaller input row and Up/Back hides it while restoring app focus.
 - [ ] Move focus across HDMI entries without changing inputs or waking devices.
 - [ ] Select an intended input with OK, verify the switch and return to a usable Home with the configured aerial delay.
-- [x] Preserve the confirmed configuration: PS5 HDMI Device Link off, LG SIMPLINK enabled for other devices; normal TV off/on previously left the PS5 off.
+- [ ] Re-verify PS5 HDMI Device Link and normal TV off/on behavior after the later CEC takeover. Preserve LG SIMPLINK power linking for other devices; the earlier successful check is historical evidence, not a current guarantee.
 - [ ] Repeat the power test after any future native integration change. Record explicit input-selection wake behavior separately from startup behavior.
 
 ## Aerials and lifecycle

@@ -6,6 +6,7 @@ use crate::{
 use aerial_native_probe::{
     catalogue::{self, Capabilities, Scene},
     model::*,
+    redraw::{event_wait_ms, TimedVisuals},
     Direction,
 };
 use serde_json::{json, Value};
@@ -132,6 +133,16 @@ struct Ui {
     video: Option<Video>,
 }
 impl Ui {
+    fn oled_state(&self, now: u64) -> OledState {
+        if let Some(idle) = self.oled_preview {
+            let mut prefs = self.prefs.clone();
+            prefs.oled_protection = true;
+            prefs.oled_dimming = true;
+            oled_state(&prefs, idle, idle, true)
+        } else {
+            self.idle.state(now, &self.prefs, self.visible)
+        }
+    }
     fn refresh_inventory(&mut self, now: u64) {
         if now.saturating_sub(self.inventory_refreshed_at) >= 30_000 {
             self.inventory_refreshed_at = now;
@@ -877,6 +888,7 @@ impl Ui {
             match r.result {
                 Ok(v) => match r.request {
                     Request::LoadPreferences => {
+                        *self.row_cache.borrow_mut() = None;
                         if let Ok(bag) = serde_json::from_value(v["shuffleBag"].clone()) {
                             self.bag = bag;
                         }
@@ -886,6 +898,7 @@ impl Ui {
                             self.merge_apps(a);
                         }
                         self.video_due = now + self.prefs.aerial_delay * 1000;
+                        self.dirty = true;
                     }
                     Request::Inventory => {
                         if let Some(a) = v["apps"].as_array() {
@@ -910,6 +923,7 @@ impl Ui {
                     Request::Artwork { id, .. } => {
                         if let Some(color) = v["color"].as_str().and_then(hex_color) {
                             self.icon_colors.insert(id.clone(), color);
+                            self.dirty = true;
                         }
                         if let Some(p) = v["path"].as_str() {
                             self.icons.insert(id, p.into());
@@ -924,6 +938,7 @@ impl Ui {
                                     .filter_map(Value::as_str)
                                     .map(str::to_owned)
                                     .collect();
+                                *self.row_cache.borrow_mut() = None;
                                 self.dirty = true;
                             }
                         }
@@ -934,6 +949,7 @@ impl Ui {
                             dolby: v["dolbyVision"] == true,
                             hdr: v["hdr10"] == true,
                         };
+                        self.dirty = true;
                     }
                     Request::Launch(id) => {
                         self.prefs.record_launch(&id, unix_ms());
@@ -2346,14 +2362,7 @@ unsafe fn draw(g: &mut Graphics, u: &Ui, now: u64) {
             [5, 12, 27, if saver { 34 } else { 168 }],
         );
     }
-    let oled = if let Some(idle) = u.oled_preview {
-        let mut p = u.prefs.clone();
-        p.oled_protection = true;
-        p.oled_dimming = true;
-        oled_state(&p, idle, idle, true)
-    } else {
-        u.idle.state(now, &u.prefs, u.visible)
-    };
+    let oled = u.oled_state(now);
     g.alpha = oled.ui_alpha;
     g.shift = (oled.x, oled.y);
     if u.screen == Screen::Clock {
@@ -2741,8 +2750,9 @@ pub unsafe fn run() -> Result<(), String> {
     let mut tick = 0;
     let mut samples = Vec::new();
     let mut pending_input = None;
+    let mut presented_time = None;
     while running {
-        let now = start.elapsed().as_millis() as u64;
+        let mut now = start.elapsed().as_millis() as u64;
         if home_signal.take() {
             u.editing = None;
             u.oled_preview = None;
@@ -2754,19 +2764,22 @@ pub unsafe fn run() -> Result<(), String> {
         }
         u.replies(now);
         u.video_events(now);
-        u.request_artwork();
+        if u.visible {
+            u.request_artwork();
+        }
         if now / 1000 != tick {
             tick = now / 1000;
-            u.dirty = true;
-            if u.idle.saver_due(now, &u.prefs) {
+            if u.screen != Screen::Clock && u.idle.saver_due(now, &u.prefs) {
                 if u.screen == Screen::Home {
                     u.home_return = u.home.clone();
                 }
                 u.screen = Screen::Clock;
+                u.dirty = true;
             }
         }
         let mut e = Event { bytes: [0; 56] };
-        let mut ready = SDL_WaitEventTimeout(&mut e, if u.dirty { 0 } else { 100 });
+        let mut ready = SDL_WaitEventTimeout(&mut e, event_wait_ms(u.dirty, u.visible));
+        now = start.elapsed().as_millis() as u64;
         while ready != 0 {
             match e.kind {
                 0x100 => {
@@ -2901,9 +2914,18 @@ pub unsafe fn run() -> Result<(), String> {
         } else if bench {
             running = false;
         }
+        let timed = TimedVisuals::new(
+            crate::clock::parts(),
+            u.oled_state(now),
+            now < u.toast_until,
+        );
+        if presented_time != Some(timed) {
+            u.dirty = true;
+        }
         if u.dirty && u.visible {
             draw(&mut g, &u, now);
             u.dirty = false;
+            presented_time = Some(timed);
             if first {
                 println!(
                     "{{\"event\":\"first-present\",\"ms\":{:.3},\"renderer\":\"{}\"}}",
@@ -3330,5 +3352,91 @@ fn handle_key(u: &mut Ui, key: i32, now: u64, running: &mut bool) {
     }
     if u.toolbar.is_none() {
         u.reveal_focus();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::platform::Response;
+    use std::sync::mpsc;
+
+    /// A completed local response, with no service thread, window, video or
+    /// filesystem activity. Start as an already-painted panel to exercise
+    /// invalidation without relying on periodic redraws or later replies.
+    fn with_reply(request: Request, value: Value) -> Ui {
+        let (sender, requests) = mpsc::sync_channel(1);
+        drop(requests);
+        let (results, receiver) = mpsc::channel();
+        results
+            .send(Response {
+                request,
+                result: Ok(value),
+            })
+            .unwrap();
+        let mut ui = make_ui(Worker { sender, receiver }, vec![], None);
+        ui.screen = Screen::Settings;
+        ui.dirty = false;
+        *ui.row_cache.borrow_mut() = Some(Rc::new(vec![]));
+        ui
+    }
+
+    #[test]
+    fn loaded_preferences_repaint_without_inventory_or_clock_activity() {
+        for cached in [false, true] {
+            let mut value = json!({"columns":5,"appearance":"light","clockStyle":"glass"});
+            if cached {
+                value["cachedApps"] = json!([{"id":"youtube.leanback.v4","title":"YouTube"}]);
+            }
+            let mut ui = with_reply(Request::LoadPreferences, value);
+            ui.replies(10);
+            assert!(ui.dirty);
+            assert!(ui.row_cache.borrow().is_none());
+            assert_eq!(ui.prefs.columns, 5);
+            assert_eq!(ui.prefs.clock_style, ClockStyle::Glass);
+            assert_eq!(ui.apps.len(), usize::from(cached));
+        }
+    }
+
+    #[test]
+    fn capability_reply_repaints_an_already_open_panel() {
+        let mut ui = with_reply(
+            Request::Capabilities,
+            json!({"dolbyVision":true,"hdr10":true}),
+        );
+        ui.replies(10);
+        assert!(ui.dirty);
+        assert!(ui.row_cache.borrow().is_none());
+        assert!(ui.caps.dolby && ui.caps.hdr);
+    }
+
+    #[test]
+    fn artwork_colour_repaints_even_without_an_image_path() {
+        let mut ui = with_reply(
+            Request::Artwork {
+                id: "youtube.leanback.v4".into(),
+                path: String::new(),
+            },
+            json!({"color":"#0578ff"}),
+        );
+        ui.replies(10);
+        assert!(ui.dirty);
+        assert_eq!(
+            ui.icon_colors.get("youtube.leanback.v4"),
+            Some(&[5, 120, 255, 255])
+        );
+        assert!(ui.icons.is_empty());
+    }
+
+    #[test]
+    fn imported_favourites_invalidate_existing_panel_rows() {
+        let mut ui = with_reply(
+            Request::Favorites,
+            json!({"favorites":["youtube.leanback.v4"]}),
+        );
+        ui.replies(10);
+        assert!(ui.dirty);
+        assert!(ui.row_cache.borrow().is_none());
+        assert_eq!(ui.prefs.favorites, vec!["youtube.leanback.v4"]);
     }
 }

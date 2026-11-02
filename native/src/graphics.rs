@@ -1,4 +1,5 @@
 //! Cached native textures and text. All SDL work stays on the event thread.
+use aerial_native_probe::text_cache::{clean_text, TextCache};
 use std::{
     cell::{Cell, RefCell},
     collections::HashMap,
@@ -146,8 +147,9 @@ pub struct Graphics {
     exported: Option<CString>,
     fonts: HashMap<(i32, u16), *mut c_void>,
     font_root: PathBuf,
-    text: HashMap<(String, i32, u16), Texture>,
-    glass_text: HashMap<(String, i32, u16, bool), Texture>,
+    text: TextCache<(i32, u16), Texture>,
+    glass_text: TextCache<(i32, u16, bool), Texture>,
+    text_widths: TextCache<(i32, u16), i32>,
     icons: HashMap<String, Texture>,
     shapes: RefCell<HashMap<ShapeKey, Texture>>,
     shape_bytes: Cell<usize>,
@@ -219,8 +221,9 @@ impl Graphics {
             exported,
             fonts: HashMap::new(),
             font_root: crate::platform::install_directory()?.join("fonts"),
-            text: HashMap::new(),
-            glass_text: HashMap::new(),
+            text: TextCache::new(1025),
+            glass_text: TextCache::new(96),
+            text_widths: TextCache::new(2048),
             icons: HashMap::new(),
             shapes: RefCell::new(HashMap::new()),
             shape_bytes: Cell::new(0),
@@ -258,8 +261,9 @@ impl Graphics {
             exported: None,
             fonts: HashMap::new(),
             font_root: crate::platform::install_directory()?.join("fonts"),
-            text: HashMap::new(),
-            glass_text: HashMap::new(),
+            text: TextCache::new(1025),
+            glass_text: TextCache::new(96),
+            text_widths: TextCache::new(2048),
             icons: HashMap::new(),
             shapes: RefCell::new(HashMap::new()),
             shape_bytes: Cell::new(0),
@@ -536,8 +540,13 @@ impl Graphics {
         ptr::null_mut()
     }
     pub unsafe fn text_width(&mut self, s: &str, size: i32, weight: u16) -> i32 {
+        let s = clean_text(s);
+        let key = (size.abs(), weight);
+        if let Some(width) = self.text_widths.get(key, &s) {
+            return *width;
+        }
         let f = self.font(size, weight);
-        let Ok(c) = CString::new(s.replace('\0', "")) else {
+        let Ok(c) = CString::new(s.as_bytes()) else {
             return 0;
         };
         if f.is_null() {
@@ -545,6 +554,10 @@ impl Graphics {
         }
         let (mut w, mut h) = (0, 0);
         if TTF_SizeUTF8(f, c.as_ptr(), &mut w, &mut h) == 0 {
+            if self.text_widths.is_full() {
+                self.text_widths.drain().for_each(drop);
+            }
+            let _ = self.text_widths.try_insert(key, &s, w);
             w
         } else {
             0
@@ -576,17 +589,17 @@ impl Graphics {
             self.text_weight(s, size, weight, x, y, c, max_width);
             return;
         }
-        let mut prefix = String::new();
-        for (i, ch) in s.chars().enumerate() {
-            prefix.push(ch);
-            let glyph = ch.to_string();
-            let at = self.text_width(&prefix, size, weight) - self.text_width(&glyph, size, weight)
+        for (i, (byte, ch)) in s.char_indices().enumerate() {
+            let prefix = &s[..byte + ch.len_utf8()];
+            let mut bytes = [0; 4];
+            let glyph = ch.encode_utf8(&mut bytes);
+            let at = self.text_width(prefix, size, weight) - self.text_width(glyph, size, weight)
                 + (i as f32 * tracking).round() as i32;
             if at >= max_width {
                 break;
             }
             if !ch.is_whitespace() {
-                self.text_weight(&glyph, size, weight, x + at, y, c, max_width - at);
+                self.text_weight(glyph, size, weight, x + at, y, c, max_width - at);
             }
         }
     }
@@ -615,8 +628,8 @@ impl Graphics {
         if self.alpha == 0 || s.is_empty() {
             return;
         }
-        let key = (s.to_owned(), size, weight, self.light);
-        if !self.glass_text.contains_key(&key) {
+        let key = (size, weight, self.light);
+        if self.glass_text.get(key, s).is_none() {
             let font = self.font(size, weight);
             if font.is_null() {
                 return;
@@ -744,15 +757,22 @@ impl Graphics {
             if texture.is_null() {
                 return;
             }
-            if self.glass_text.len() >= 96 {
-                for (_, old) in self.glass_text.drain() {
+            if self.glass_text.is_full() {
+                for old in self.glass_text.drain() {
                     SDL_DestroyTexture(old.ptr);
                 }
             }
-            self.glass_text
-                .insert(key.clone(), Texture { ptr: texture, w, h });
+            if let Err(old) = self
+                .glass_text
+                .try_insert(key, s, Texture { ptr: texture, w, h })
+            {
+                SDL_DestroyTexture(old.ptr);
+                return;
+            }
         }
-        let t = &self.glass_text[&key];
+        let Some(t) = self.glass_text.get(key, s) else {
+            return;
+        };
         let w = t.w.min(max_width + 2);
         SDL_SetTextureAlphaMod(t.ptr, self.alpha);
         SDL_SetTextureColorMod(t.ptr, 255, 255, 255);
@@ -786,11 +806,11 @@ impl Graphics {
         if s.is_empty() || self.alpha == 0 {
             return;
         }
-        let s = s.replace('\0', "");
-        let key = (s.clone(), size, weight);
-        if !self.text.contains_key(&key) {
-            if self.text.len() > 1024 {
-                for (_, t) in self.text.drain() {
+        let s = clean_text(s);
+        let key = (size, weight);
+        if self.text.get(key, &s).is_none() {
+            if self.text.is_full() {
+                for t in self.text.drain() {
                     SDL_DestroyTexture(t.ptr);
                 }
             }
@@ -798,7 +818,7 @@ impl Graphics {
             if f.is_null() {
                 return;
             }
-            let cs = CString::new(s).unwrap();
+            let cs = CString::new(s.as_bytes()).unwrap();
             let surf = TTF_RenderUTF8_Blended(
                 f,
                 cs.as_ptr(),
@@ -819,14 +839,19 @@ impl Graphics {
             }
             let (mut w, mut h) = (0, 0);
             SDL_QueryTexture(t, ptr::null_mut(), ptr::null_mut(), &mut w, &mut h);
-            self.text.insert(key.clone(), Texture { ptr: t, w, h });
+            if let Err(old) = self.text.try_insert(key, &s, Texture { ptr: t, w, h }) {
+                SDL_DestroyTexture(old.ptr);
+                return;
+            }
         }
         let c = if self.light && c[0] > 150 {
             [20, 32, 51, c[3]]
         } else {
             c
         };
-        let t = &self.text[&key];
+        let Some(t) = self.text.get(key, &s) else {
+            return;
+        };
         let w = t.w.min(max_width.max(1));
         SDL_SetTextureAlphaMod(t.ptr, ((c[3] as u16 * self.alpha as u16) / 255) as u8);
         SDL_SetTextureColorMod(t.ptr, c[0], c[1], c[2]);
@@ -1085,10 +1110,10 @@ impl Graphics {
 impl Drop for Graphics {
     fn drop(&mut self) {
         unsafe {
-            for (_, t) in self.text.drain() {
+            for t in self.text.drain() {
                 SDL_DestroyTexture(t.ptr);
             }
-            for (_, t) in self.glass_text.drain() {
+            for t in self.glass_text.drain() {
                 SDL_DestroyTexture(t.ptr);
             }
             for (_, t) in self.icons.drain() {

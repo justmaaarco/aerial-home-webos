@@ -18,6 +18,41 @@ const MAX_ARTWORK: usize = 1_500_000;
 const MAX_PREFS: usize = 262_144;
 const MAX_APP_CACHE: usize = 524_288;
 
+/// Optional diagnostics for correlating the client side of a launch with SAM
+/// and surface-manager logs. This reports requests/replies, never app readiness.
+/// No service payloads, media URLs, saved preferences or artwork paths are logged.
+struct LaunchTiming {
+    target: String,
+    scope: &'static str,
+    started: Instant,
+}
+impl LaunchTiming {
+    fn new(target: &str, scope: &'static str) -> Option<Self> {
+        static ENABLED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        let enabled = *ENABLED.get_or_init(|| {
+            std::env::args().any(|arg| arg == "--trace-platform")
+                || std::env::var("AERIAL_NATIVE_TRACE").as_deref() == Ok("1")
+        });
+        enabled.then(|| Self {
+            target: target.into(),
+            scope,
+            started: Instant::now(),
+        })
+    }
+    fn mark(&self, phase: &str, success: Option<bool>) {
+        let _ = writeln!(
+            std::io::stderr().lock(),
+            "{}",
+            json!({"event":"native-launch-timing", "scope":self.scope,
+                "phase":phase, "targetAppId":self.target,
+                "processId":std::process::id(),
+                "unixMs":SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis(),
+                "elapsedMs":self.started.elapsed().as_secs_f64()*1000.0,
+                "success":success})
+        );
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum Request {
     Inventory,
@@ -469,7 +504,15 @@ fn perform(request: &Request, directory: &Path) -> Result<Value, String> {
             if !valid_app_id(id) {
                 return Err("Invalid application ID".into());
             }
-            luna_fallback("com.webos.applicationManager/launch", json!({"id":id}))
+            let timing = LaunchTiming::new(id, "worker");
+            if let Some(timing) = &timing {
+                timing.mark("started", None);
+            }
+            let result = luna_fallback("com.webos.applicationManager/launch", json!({"id":id}));
+            if let Some(timing) = &timing {
+                timing.mark("finished", Some(result.is_ok()));
+            }
+            result
         }
         Request::AudioStatus => {
             let reply = luna_fallback("com.webos.audio/getVolume", json!({}))?;
@@ -607,6 +650,140 @@ fn luna_process(method: &str, payload: Value) -> Result<Value, String> {
     successful(reply)
 }
 
+// An owned GLib timer makes the worker's context wait bounded without waking it
+// every 2 ms. The source and callback storage are confined to that context's
+// thread; destroy/unref always precedes freeing the callback's heap allocation.
+#[cfg(any(
+    all(feature = "sdl", target_os = "linux", target_arch = "arm"),
+    all(test, target_os = "linux")
+))]
+mod glib_deadline {
+    use std::{
+        cell::Cell,
+        ffi::{c_int, c_uint, c_void},
+    };
+
+    #[link(name = "glib-2.0")]
+    extern "C" {
+        fn g_timeout_source_new(interval: c_uint) -> *mut c_void;
+        fn g_source_set_callback(
+            source: *mut c_void,
+            callback: Option<extern "C" fn(*mut c_void) -> c_int>,
+            data: *mut c_void,
+            notify: Option<extern "C" fn(*mut c_void)>,
+        );
+        fn g_source_attach(source: *mut c_void, context: *mut c_void) -> c_uint;
+        fn g_source_destroy(source: *mut c_void);
+        fn g_source_unref(source: *mut c_void);
+    }
+
+    pub(super) struct Deadline {
+        source: *mut c_void,
+        expired: Box<Cell<bool>>,
+    }
+
+    extern "C" fn expired(data: *mut c_void) -> c_int {
+        if !data.is_null() {
+            // This callback only runs while its owning context is iterated by
+            // the request thread. The Box remains stable until source teardown.
+            unsafe { &*data.cast::<Cell<bool>>() }.set(true);
+        }
+        0 // G_SOURCE_REMOVE: a deadline fires only once.
+    }
+
+    impl Deadline {
+        /// The caller owns and exclusively iterates this non-null GMainContext.
+        pub(super) unsafe fn attach(
+            context: *mut c_void,
+            milliseconds: u32,
+        ) -> Result<Self, String> {
+            if context.is_null() || milliseconds == 0 {
+                return Err("Invalid TV request deadline".into());
+            }
+            let source = g_timeout_source_new(milliseconds);
+            if source.is_null() {
+                return Err("Could not allocate TV request deadline".into());
+            }
+            let deadline = Self {
+                source,
+                expired: Box::new(Cell::new(false)),
+            };
+            g_source_set_callback(
+                source,
+                Some(expired),
+                (&*deadline.expired as *const Cell<bool>) as *mut c_void,
+                None,
+            );
+            if g_source_attach(source, context) == 0 {
+                return Err("Could not attach TV request deadline".into());
+            }
+            Ok(deadline)
+        }
+        pub(super) fn expired(&self) -> bool {
+            self.expired.get()
+        }
+    }
+
+    impl Drop for Deadline {
+        fn drop(&mut self) {
+            unsafe {
+                // Destroy is also valid after a one-shot callback removed the
+                // source. It does not release our reference; unref does that.
+                g_source_destroy(self.source);
+                g_source_unref(self.source);
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use std::time::{Duration, Instant};
+        #[link(name = "glib-2.0")]
+        extern "C" {
+            fn g_main_context_new() -> *mut c_void;
+            fn g_main_context_unref(context: *mut c_void);
+            fn g_main_context_iteration(context: *mut c_void, may_block: c_int) -> c_int;
+            fn g_main_context_find_source_by_id(context: *mut c_void, id: c_uint) -> *mut c_void;
+            fn g_source_get_id(source: *mut c_void) -> c_uint;
+        }
+        struct Context(*mut c_void);
+        impl Context {
+            fn new() -> Self {
+                let context = unsafe { g_main_context_new() };
+                assert!(!context.is_null());
+                Self(context)
+            }
+        }
+        impl Drop for Context {
+            fn drop(&mut self) {
+                unsafe { g_main_context_unref(self.0) }
+            }
+        }
+        #[test]
+        fn blocking_context_wakes_at_its_owned_deadline() {
+            let context = Context::new();
+            let start = Instant::now();
+            let timer = unsafe { Deadline::attach(context.0, 15) }.unwrap();
+            let shared = &timer;
+            while !shared.expired() {
+                unsafe { g_main_context_iteration(context.0, 1) };
+            }
+            assert!(start.elapsed() >= Duration::from_millis(10));
+            assert!(start.elapsed() < Duration::from_secs(2));
+        }
+        #[test]
+        fn early_reply_cleanup_removes_the_pending_timer_before_freeing_its_data() {
+            let context = Context::new();
+            let timer = unsafe { Deadline::attach(context.0, 60_000) }.unwrap();
+            let id = unsafe { g_source_get_id(timer.source) };
+            assert!(!unsafe { g_main_context_find_source_by_id(context.0, id) }.is_null());
+            drop(timer);
+            assert!(unsafe { g_main_context_find_source_by_id(context.0, id) }.is_null());
+        }
+    }
+}
+
 // Public NDK LS2/GLib ABI; uses the installed executable's own role rather than
 // impersonating an app ID with LSCallFromApplication. This pattern is also used
 // by Luma's native client; all callback storage survives cancellation/unregister.
@@ -740,6 +917,13 @@ mod native_ls2 {
         }
     }
     pub(super) fn request(uri: &str, payload: Value) -> Result<Value, String> {
+        let timing = (uri == "luna://com.webos.applicationManager/launch")
+            .then(|| {
+                payload["id"]
+                    .as_str()
+                    .and_then(|id| LaunchTiming::new(id, "ls2"))
+            })
+            .flatten();
         let uri = CString::new(uri).map_err(|_| "Invalid Luna URI")?;
         let encoded = payload.to_string();
         if encoded.len() > MAX_REPLY {
@@ -776,15 +960,35 @@ mod native_ls2 {
         } {
             return Err(error.describe("call submission"));
         }
-        let deadline = Instant::now() + Duration::from_millis(6500);
-        while Instant::now() < deadline {
-            unsafe {
-                g_main_context_iteration(session.context, 0);
-            }
+        let deadline = unsafe { super::glib_deadline::Deadline::attach(session.context, 6500)? };
+        if let Some(timing) = &timing {
+            timing.mark("submitted", None);
+        }
+        loop {
+            // A synchronous/immediately dispatched reply must not wait for the
+            // timeout merely because there are no more ready GLib sources.
             if let Some(result) = session.reply.as_mut().and_then(|r| r.result.take()) {
+                if let Some(timing) = &timing {
+                    timing.mark(
+                        "reply",
+                        Some(
+                            result
+                                .as_ref()
+                                .is_ok_and(|value| value["returnValue"] != false),
+                        ),
+                    );
+                }
                 return result;
             }
-            thread::sleep(Duration::from_millis(2));
+            if deadline.expired() {
+                break;
+            }
+            unsafe {
+                g_main_context_iteration(session.context, 1);
+            }
+        }
+        if let Some(timing) = &timing {
+            timing.mark("timeout", Some(false));
         }
         let mut cancel_error = LsError::new();
         unsafe {

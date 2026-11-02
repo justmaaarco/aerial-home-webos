@@ -1,8 +1,10 @@
 # Aerial Home Native — 0.2.0 candidate
 
-Aerial Home Native ports the existing Aerial Home interface to Rust, SDL2 and OpenGL ES for rooted LG webOS TVs. It uses the separate app ID `io.github.justmaaarco.aerialhome.nativeprobe`; the installed title is **Aerial Home Native**. The original web launcher remains the Home-button and power-on target. Native testing has not changed those bindings or the confirmed PS5 power-link arrangement.
+Aerial Home Native ports the existing Aerial Home interface to Rust, SDL2 and OpenGL ES for rooted LG webOS TVs. It uses the separate app ID `io.github.justmaaarco.aerialhome.nativeprobe`; the installed title is **Aerial Home Native**. The original web launcher remains the Home-button and power-on target. Native code does not change those bindings or HDMI power-link settings.
 
-This is a candidate implementation, not a validated replacement for every web flow or TV model. It follows Aerial Home's existing design and does not promise pixel identity or feature equivalence with tvOS. A matched performance comparison with the web launcher is still required.
+This is a candidate implementation, not a validated replacement for every web flow or TV model. It follows Aerial Home's existing design and does not promise pixel identity or feature equivalence with tvOS. The 0.2.0 build has a matched comparison on one LG B4; subsequent source optimizations still need a fresh TV comparison before promotion.
+
+The current performance pass fixes hidden-window busy polling, defers new artwork work while hidden, redraws time-dependent UI only when visible state changes, caches text measurements and uses bounded event-driven service waits. Its package was deployed to the separate native app and smoke-checked on the development TV on 2026-11-02. The original web Home/power bindings remain in place. See [performance engineering](../docs/native-performance.md) and [platform research](../docs/native-platform-research.md) for evidence, limits and validation.
 
 ## Architecture and interface
 
@@ -70,7 +72,7 @@ The directory contains `preferences.json`, a separately revalidated `apps.json`,
 
 The binary's `--home` mode sends a best-effort local reset and exits. A running launcher returns from panels to Home without activating an app or input. This command does not foreground or launch the app; a Home integration must request it separately through SAM. Root-side clients reuse an existing app-owned directory rather than creating one. The default integration remains with the original web launcher while native validation continues.
 
-The previously confirmed PS5 setup remains unchanged: HDMI Device Link is disabled on the PS5, while LG SIMPLINK remains enabled for other devices. Native startup does not select an HDMI input.
+Native startup does not select an HDMI input. HDMI power linking is separate from launcher rendering: a later benchmark observed PS5 CEC input takeover, so the earlier console-side setting is not a guarantee of current behavior. SIMPLINK was temporarily isolated for that comparison and restored afterward. Preserve the user's other devices' power linking when diagnosing the console separately.
 
 ## Build and package
 
